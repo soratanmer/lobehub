@@ -24,3 +24,4 @@ export * from './url';
 export * from './user';
 export * from './userMemory';
 export * from './version';
+export * from './workspace';

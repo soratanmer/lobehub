@@ -1,10 +1,9 @@
+import { INVITATION_EXPIRY_DAYS } from '@lobechat/const';
 import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid/non-secure';
 
 import { workspaceInvitations, workspaceMembers } from '../schemas/workspace';
 import type { LobeChatDatabase } from '../type';
-
-const INVITATION_EXPIRY_DAYS = 7;
 
 type MemberRole = 'member' | 'owner' | 'viewer';
 
