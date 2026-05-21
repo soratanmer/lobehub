@@ -1484,6 +1484,25 @@ When I am ___, I need ___
   'workspace.upgradeModal.proTag': 'Pro',
   'workspace.upgradeModal.subtitle':
     'Unlock collaboration, larger credits, and higher rate limits.',
+  'workspace.upgradeModal.successPage.amountLabel': 'Total paid',
+  'workspace.upgradeModal.successPage.continueCta': 'Invite & continue',
+  'workspace.upgradeModal.successPage.desc':
+    '{{name}} is now on Pro. Invite teammates to start collaborating.',
+  'workspace.upgradeModal.successPage.inviteDesc':
+    'Send invites by email. They will receive a link to join the workspace.',
+  'workspace.upgradeModal.successPage.inviteTitle': 'Invite teammates to {{name}}',
+  'workspace.upgradeModal.successPage.paidAtLabel': 'Paid at',
+  'workspace.upgradeModal.successPage.processingDesc':
+    'Hang tight — we are confirming the payment with Stripe. This usually takes a few seconds.',
+  'workspace.upgradeModal.successPage.processingTitle': 'Processing your payment…',
+  'workspace.upgradeModal.successPage.recurring.monthly': 'Monthly',
+  'workspace.upgradeModal.successPage.recurring.yearly': 'Yearly',
+  'workspace.upgradeModal.successPage.recurringLabel': 'Billing cycle',
+  'workspace.upgradeModal.successPage.seatsSummary': '{{count}} included seat',
+  'workspace.upgradeModal.successPage.seatsSummary_other': '{{count}} included seats',
+  'workspace.upgradeModal.successPage.skipCta': 'Skip for now',
+  'workspace.upgradeModal.successPage.title': 'Upgrade complete',
+  'workspace.upgradeModal.successToast': 'Upgrade complete — refreshing your plan…',
   'workspace.upgradeModal.title': 'Upgrade to Pro',
   'workspace.upgradeModal.upgradeButton': 'Upgrade',
   'workspace.wizard.back': 'Back',

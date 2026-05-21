@@ -313,7 +313,7 @@
   "qa.workspace.list.intro.q": "工作区（Workspace）是什么？",
   "qa.workspace.list.personalVsWorkspace.a": "可以。两者完全独立计费：个人订阅仅用于个人空间，工作区订阅仅用于工作区内部。在工作区中产生的消耗不会扣除您的个人积分。",
   "qa.workspace.list.personalVsWorkspace.q": "工作区订阅和个人订阅可以同时使用吗？",
-  "qa.workspace.list.plans.a": "{{hobby}} 套餐免费，适合小型团队体验工作区，所有成员共享每月免费算力额度。{{pro}} 套餐提供更多算力、席位管理、优先支持等高级功能。",
+  "qa.workspace.list.plans.a": "{{hobby}} 套餐免费，仅含 1 个席位，适合个人体验工作区功能。{{pro}} 套餐提供每月算力额度，并支持团队席位、席位管理、优先支持等高级功能。",
   "qa.workspace.list.plans.q": "{{hobby}} 和 {{pro}} 套餐有什么区别？",
   "qa.workspace.list.seats.a": "Pro 套餐拥有者可在「账单」页面调整席位数量，每个额外席位按月计费。降级至 {{hobby}} 后席位限制会自动调整。",
   "qa.workspace.list.seats.q": "如何添加或管理席位？",

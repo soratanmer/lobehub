@@ -366,7 +366,7 @@ export default {
   'qa.workspace.list.personalVsWorkspace.q':
     'Can workspace and personal subscriptions be used at the same time?',
   'qa.workspace.list.plans.a':
-    '{{hobby}} is free and designed for small teams to try out workspaces with a shared monthly credit allowance. {{pro}} unlocks more credits, seat management, priority support, and other advanced features.',
+    '{{hobby}} is free and includes a single seat, ideal for solo use to try out the workspace experience. {{pro}} provides a monthly credit allowance and unlocks team seats, seat management, priority support, and other advanced features.',
   'qa.workspace.list.plans.q': 'What is the difference between {{hobby}} and {{pro}}?',
   'qa.workspace.list.seats.a':
     'Pro workspace owners can adjust the seat count from the Billing tab; each additional seat is billed monthly. Seat limits adjust automatically when downgrading to {{hobby}}.',
