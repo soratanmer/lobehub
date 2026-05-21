@@ -1135,7 +1135,7 @@ When I am ___, I need ___
   'workspace.billingPage.billing.seats.previewLabel': 'Price preview (approximate)',
   'workspace.billingPage.billing.seats.priceDelta': '${{previous}} / mo → ${{next}} / mo',
   'workspace.billingPage.billing.seats.proration':
-    'Stripe charges or refunds the prorated difference for the remainder of the current billing cycle.',
+    'Seat changes are settled on the next monthly invoice — no immediate charge or refund.',
   'workspace.billingPage.billing.seats.subtitle_one':
     'Currently {{count}} seat · ${{seatFee}} per extra seat / month',
   'workspace.billingPage.billing.seats.subtitle_other':
@@ -1460,10 +1460,21 @@ When I am ___, I need ___
   'workspace.personalTag': 'Personal',
   'workspace.switchWorkspace': 'Switch workspace',
   'workspace.upgradeModal.alreadyUpgraded': 'Already upgraded',
-  'workspace.upgradeModal.changeWorkspace': 'Choose a different workspace',
+  'workspace.upgradeModal.changeWorkspace': 'Back',
+  'workspace.upgradeModal.chargeDisclosure':
+    'Upon clicking Upgrade, you will be charged ${{fee}}, plus any applicable taxes and fees, immediately and then every month, until you cancel. Seat fees and on-demand usage are settled at month-end; if your usage exceeds a billing threshold during a cycle, your payment method on file may be charged before the cycle ends.',
+  'workspace.upgradeModal.inviteLaterHint':
+    'You can invite more members to your team in the next step.',
+  'workspace.upgradeModal.memberCount_one': '{{count}} member',
+  'workspace.upgradeModal.memberCount_other': '{{count}} members',
+  'workspace.upgradeModal.memberIncluded': 'Included',
+  'workspace.upgradeModal.ownerTag': 'Owner',
+  'workspace.upgradeModal.totalPerMonth': '${{amount}} / month',
+  'workspace.upgradeModal.youLabel': 'You',
   'workspace.upgradeModal.continueCta': 'Continue',
   'workspace.upgradeModal.createTeam': 'Create a new workspace',
-  'workspace.upgradeModal.formSubtitle': 'Confirm seats and continue to checkout.',
+  'workspace.upgradeModal.formSubtitle':
+    'Only the platform fee is charged today — seat fees are settled at month-end.',
   'workspace.upgradeModal.formTitle': 'Upgrade {{name}} to Pro',
   'workspace.upgradeModal.heading': 'Upgrade a workspace to Pro',
   'workspace.upgradeModal.hobbyTag': 'Hobby',
@@ -1474,7 +1485,7 @@ When I am ___, I need ___
   'workspace.upgradeModal.subtitle':
     'Unlock collaboration, larger credits, and higher rate limits.',
   'workspace.upgradeModal.title': 'Upgrade to Pro',
-  'workspace.upgradeModal.upgradeButton': 'Upgrade {{name}} to Pro',
+  'workspace.upgradeModal.upgradeButton': 'Upgrade',
   'workspace.wizard.back': 'Back',
   'workspace.wizard.cancel': 'Cancel',
   'workspace.wizard.next': 'Next',
@@ -1500,10 +1511,13 @@ When I am ___, I need ___
   'workspace.wizard.step2.billing.freeSummary': 'Solo workspace · no payment required',
   'workspace.wizard.step2.billing.platformLine': 'Pro Platform · monthly',
   'workspace.wizard.step2.billing.seatLine': 'Additional seats × {{count}}',
+  'workspace.wizard.step2.billing.seatPostpaidNote':
+    'Seats billed at month-end (${{seatFee}}/seat/mo). You only pay for seats actually used during the cycle.',
   'workspace.wizard.step2.billing.title': 'Billing details',
-  'workspace.wizard.step2.billing.total': 'Total / month',
+  'workspace.wizard.step2.billing.total': 'Total',
   'workspace.wizard.step2.billing.totalFreeHint': 'Free forever for a solo workspace.',
-  'workspace.wizard.step2.billing.totalMonthHint': 'Billed monthly · cancel anytime',
+  'workspace.wizard.step2.billing.totalMonthHint':
+    'Platform fee charged today · seats billed at month-end',
   'workspace.wizard.step2.confirmPurchase': 'Confirm purchase',
   'workspace.wizard.step2.createFailed': 'Failed to create workspace',
   'workspace.wizard.step2.createFree': 'Create workspace',
