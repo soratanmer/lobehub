@@ -1459,6 +1459,22 @@ When I am ___, I need ___
   'workspace.newWorkspace': 'New workspace',
   'workspace.personalTag': 'Personal',
   'workspace.switchWorkspace': 'Switch workspace',
+  'workspace.upgradeModal.alreadyUpgraded': 'Already upgraded',
+  'workspace.upgradeModal.changeWorkspace': 'Choose a different workspace',
+  'workspace.upgradeModal.continueCta': 'Continue',
+  'workspace.upgradeModal.createTeam': 'Create a new workspace',
+  'workspace.upgradeModal.formSubtitle': 'Confirm seats and continue to checkout.',
+  'workspace.upgradeModal.formTitle': 'Upgrade {{name}} to Pro',
+  'workspace.upgradeModal.heading': 'Upgrade a workspace to Pro',
+  'workspace.upgradeModal.hobbyTag': 'Hobby',
+  'workspace.upgradeModal.noHobbyHint': "You don't own any Hobby workspaces to upgrade.",
+  'workspace.upgradeModal.payFailed': 'Failed to start checkout',
+  'workspace.upgradeModal.pickerLabel': 'Select a workspace',
+  'workspace.upgradeModal.proTag': 'Pro',
+  'workspace.upgradeModal.subtitle':
+    'Unlock collaboration, larger credits, and higher rate limits.',
+  'workspace.upgradeModal.title': 'Upgrade to Pro',
+  'workspace.upgradeModal.upgradeButton': 'Upgrade {{name}} to Pro',
   'workspace.wizard.back': 'Back',
   'workspace.wizard.cancel': 'Cancel',
   'workspace.wizard.next': 'Next',
@@ -1502,7 +1518,8 @@ When I am ___, I need ___
   'workspace.wizard.step2.features.pro.adminControls':
     'Admin controls: centralized billing, roles and audit logs',
   'workspace.wizard.step2.features.pro.collaboration': 'Invite teammates · share agents and files',
-  'workspace.wizard.step2.features.pro.onDemand': 'Extra usage billed on-demand · AutoTopUp',
+  'workspace.wizard.step2.features.pro.onDemand':
+    'Extra usage billed on-demand · AutoTopUp (${{price}}/M)',
   'workspace.wizard.step2.features.pro.priorityModels': 'Priority access to premium models',
   'workspace.wizard.step2.features.pro.support': 'Priority email support',
   'workspace.wizard.step2.left.creditsHobbyHint':
