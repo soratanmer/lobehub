@@ -1054,6 +1054,7 @@ When I am ___, I need ___
   'workspace.billing.credits.label': 'Credits this month',
   'workspace.billing.hobbyHint': 'Free workspace · shared monthly pool',
   'workspace.billing.platformLine': 'Pro Platform · monthly',
+  'workspace.billing.plan.enterprise': 'Enterprise',
   'workspace.billing.plan.hobby': 'Hobby',
   'workspace.billing.plan.pro': 'Pro',
   'workspace.billing.seatLine': 'Additional seats × {{count}}',
@@ -1492,6 +1493,7 @@ When I am ___, I need ___
     'Send invites by email. They will receive a link to join the workspace.',
   'workspace.upgradeModal.successPage.inviteTitle': 'Invite teammates to {{name}}',
   'workspace.upgradeModal.successPage.paidAtLabel': 'Paid at',
+  'workspace.upgradeModal.successPage.planTag': 'Workspace Pro',
   'workspace.upgradeModal.successPage.processingDesc':
     'Hang tight — we are confirming the payment with Stripe. This usually takes a few seconds.',
   'workspace.upgradeModal.successPage.processingTitle': 'Processing your payment…',
