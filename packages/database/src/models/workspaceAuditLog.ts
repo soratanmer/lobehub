@@ -25,7 +25,8 @@ export type WorkspaceAuditAction =
   | 'subscription.cancelled'
   | 'subscription.cancellation_scheduled'
   | 'subscription.cancellation_resumed'
-  | 'subscription.grace_period_started';
+  | 'subscription.grace_period_started'
+  | 'billing.portal_session_created';
 
 interface CreateAuditLogParams {
   action: WorkspaceAuditAction;
