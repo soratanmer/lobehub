@@ -1467,6 +1467,7 @@ When I am ___, I need ___
     'This invitation has been revoked by the workspace owner.',
   'workspace.invitePage.revokedTitle': 'Invitation Revoked',
   'workspace.invitePage.signInToAccept': 'Sign in to accept',
+  'workspace.invitePage.switchAccountToAccept': 'Sign in as {{email}} to accept',
   'workspace.invitePage.signUpToJoin': 'Create account & join',
   'workspace.invitePage.title': 'Workspace Invitation',
   'workspace.invitePage.workspaceLimitSubtitle':
@@ -1536,6 +1537,8 @@ When I am ___, I need ___
   'workspace.upgradeModal.subtitle':
     'Unlock collaboration, larger credits, and higher rate limits.',
   'workspace.upgradeModal.successPage.amountLabel': 'Total paid',
+  'workspace.upgradeModal.successPage.activating':
+    'Activating your subscription — this usually takes a few seconds…',
   'workspace.upgradeModal.successPage.continueCta': 'Invite & continue',
   'workspace.upgradeModal.successPage.desc':
     '{{name}} is now on Pro. Invite teammates to start collaborating.',

@@ -735,6 +735,13 @@
       "when": 1779121348830,
       "tag": "0104_add_workspace_scope_to_rbac",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1779419110273,
+      "tag": "0105_workspace_members_composite_pk",
+      "breakpoints": true
     }
   ],
   "version": "6"

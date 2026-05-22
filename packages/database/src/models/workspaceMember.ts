@@ -26,7 +26,7 @@ export class WorkspaceMemberModel {
         userId: params.userId,
         workspaceId: params.workspaceId,
       })
-      .onConflictDoNothing()
+      .onConflictDoNothing({ target: [workspaceMembers.workspaceId, workspaceMembers.userId] })
       .returning();
     return result;
   };

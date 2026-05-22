@@ -2256,7 +2256,7 @@ table workspace_members {
   joined_at "timestamp with time zone" [not null, default: `now()`]
 
   indexes {
-    workspace_id [name: 'workspace_members_workspace_id_idx']
+    (workspace_id, user_id) [pk]
     user_id [name: 'workspace_members_user_id_idx']
   }
 }
