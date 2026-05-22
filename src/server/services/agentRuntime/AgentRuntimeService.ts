@@ -9,6 +9,17 @@ import type { ISnapshotStore } from '@lobechat/agent-tracing';
 import { dynamicInterventionAudits } from '@lobechat/builtin-tools/dynamicInterventionAudits';
 import { getModelPropertyWithFallback } from '@lobechat/model-runtime';
 import {
+  context as otelContext,
+  SpanStatusCode,
+  trace as otelTrace,
+} from '@lobechat/observability-otel/api';
+import {
+  buildInvokeAgentAttributes,
+  buildInvokeAgentResultAttributes,
+  invokeAgentSpanName,
+  tracer as agentRuntimeTracer,
+} from '@lobechat/observability-otel/modules/agent-runtime';
+import {
   AgentRuntimeErrorType,
   ChatErrorType,
   type ChatMessageError,
@@ -512,396 +523,450 @@ export class AgentRuntimeService {
     // success path.
     const stepStartAt = Date.now();
 
+    // OTel invoke_agent span. Wraps the entire step body so child spans
+    // (chat / execute_tool / context_engineering) auto-nest via the active
+    // context. Started with minimal attrs; agent/model/topic are added once
+    // agentState is loaded.
+    const invokeAgentSpan = agentRuntimeTracer.startSpan(invokeAgentSpanName(), {
+      attributes: buildInvokeAgentAttributes({ operationId, stepIndex }),
+    });
+    const invokeAgentCtx = otelTrace.setSpan(otelContext.active(), invokeAgentSpan);
+
     try {
-      log('[%s][%d] Start step executing...', operationId, stepIndex);
+      return await otelContext.with(invokeAgentCtx, async () => {
+        log('[%s][%d] Start step executing...', operationId, stepIndex);
 
-      // Publish step start event
-      await this.streamManager.publishStreamEvent(operationId, {
-        data: {},
-        stepIndex,
-        type: 'step_start',
-      });
-
-      // Get operation state and metadata
-      const agentState = await this.coordinator.loadAgentState(operationId);
-
-      if (!agentState) {
-        throw new Error(`Agent state not found for operation ${operationId}`);
-      }
-
-      agentState.metadata = {
-        ...agentState.metadata,
-        externalRetryCount,
-      };
-
-      // Layer 2 defense: catch extremely delayed retries that arrive after lock TTL expired
-      if (agentState.stepCount > stepIndex) {
-        log(
-          '[%s][%d] Step already completed (stepCount=%d), skipping',
-          operationId,
+        // Publish step start event
+        await this.streamManager.publishStreamEvent(operationId, {
+          data: {},
           stepIndex,
-          agentState.stepCount,
-        );
-        return {
-          nextStepScheduled: false,
-          state: agentState,
-          stepResult: null,
-          success: true,
-        };
-      }
-
-      // Early exit: skip step if operation is already in a terminal state
-      // This prevents executing expensive LLM/tool calls after timeout or interruption
-      if (
-        agentState.status === 'interrupted' ||
-        agentState.status === 'done' ||
-        agentState.status === 'error'
-      ) {
-        log(
-          '[%s][%d] Skipping step — operation already in terminal state: %s',
-          operationId,
-          stepIndex,
-          agentState.status,
-        );
-
-        const reason = this.determineCompletionReason(agentState);
-
-        await this.completionLifecycle.emitSignalEvents(operationId, agentState, reason);
-
-        // Dispatch completion hooks so consumers (e.g., bot local-mode promise) can finalize
-        await this.completionLifecycle.dispatchHooks(operationId, agentState, reason);
-
-        return {
-          nextStepScheduled: false,
-          state: agentState,
-          stepResult: null,
-          success: true,
-        };
-      }
-
-      let beforeStepSignalEvents: Array<{ [key: string]: unknown; type: string }> = [];
-
-      // Dispatch beforeStep hooks
-      try {
-        const beforeStepMetadata = agentState?.metadata || {};
-        const beforeStepSignalEmission = await emitAgentSignalSourceEvent(
-          {
-            payload: {
-              agentId: beforeStepMetadata?.agentId,
-              operationId,
-              serializedContext: undefined,
-              stepIndex,
-              topicId: beforeStepMetadata?.topicId,
-              turnCount: agentState?.stepCount || 0,
-            },
-            sourceId: `${operationId}:before:${stepIndex}`,
-            sourceType: 'runtime.before_step',
-          },
-          {
-            agentId: beforeStepMetadata?.agentId,
-            db: this.serverDB,
-            userId: beforeStepMetadata?.userId || this.userId,
-          },
-          { ignoreError: true },
-        );
-        beforeStepSignalEvents = toAgentSignalSnapshotEvents(beforeStepSignalEmission);
-        await hookDispatcher.dispatch(
-          operationId,
-          'beforeStep',
-          {
-            agentId: beforeStepMetadata?.agentId || '',
-            finalState: agentState,
-            operationId,
-            stepIndex,
-            steps: agentState?.stepCount || 0,
-            userId: beforeStepMetadata?.userId || this.userId,
-          },
-          beforeStepMetadata._hooks,
-        );
-      } catch (hookError) {
-        log('[%s] beforeStep hook dispatch error: %O', operationId, hookError);
-      }
-
-      // Create Agent and Runtime instances
-      // Use agentState.metadata which contains the full app context (topicId, agentId, etc.)
-      // operationMetadata only contains basic fields (agentConfig, modelRuntimeConfig, userId)
-      const { runtime } = await this.createAgentRuntime({
-        metadata: agentState?.metadata,
-        operationId,
-        stepIndex,
-      });
-
-      // Handle human intervention
-      let currentContext = context;
-      let currentState = agentState;
-
-      if (humanInput || approvedToolCall || rejectionReason) {
-        const interventionResult = await this.humanIntervention.process(currentState, {
-          approvedToolCall,
-          humanInput,
-          rejectAndContinue,
-          rejectionReason,
-          toolMessageId,
+          type: 'step_start',
         });
-        currentState = interventionResult.newState;
-        currentContext = interventionResult.nextContext;
-      }
 
-      // Pre-step computation: extract device context from DB messages
-      // Follows front-end computeStepContext pattern — computed at step boundary, not inside executors
-      if (!currentState.metadata?.activeDeviceId) {
-        const deviceContext = await this.computeDeviceContext(currentState);
-        if (deviceContext && currentState.metadata) {
-          currentState.metadata.activeDeviceId = deviceContext.activeDeviceId;
-          currentState.metadata.devicePlatform = deviceContext.devicePlatform;
-          currentState.metadata.deviceSystemInfo = deviceContext.deviceSystemInfo;
+        // Get operation state and metadata
+        const agentState = await this.coordinator.loadAgentState(operationId);
+
+        if (!agentState) {
+          throw new Error(`Agent state not found for operation ${operationId}`);
+        }
+
+        agentState.metadata = {
+          ...agentState.metadata,
+          externalRetryCount,
+        };
+
+        // Enrich invoke_agent span with agent identity now that state is loaded.
+        const stateAgentConfig = agentState.metadata?.agentConfig as
+          | { description?: string | null; title?: string | null }
+          | undefined;
+        const stateModel =
+          agentState.modelRuntimeConfig?.model ?? agentState.metadata?.modelRuntimeConfig?.model;
+        invokeAgentSpan.updateName(invokeAgentSpanName(stateAgentConfig?.title ?? undefined));
+        invokeAgentSpan.setAttributes(
+          buildInvokeAgentAttributes({
+            agentDescription: stateAgentConfig?.description ?? undefined,
+            agentId: agentState.metadata?.agentId,
+            agentName: stateAgentConfig?.title ?? undefined,
+            conversationId: agentState.metadata?.topicId,
+            operationId,
+            requestModel: stateModel,
+            stepIndex,
+          }),
+        );
+
+        // Layer 2 defense: catch extremely delayed retries that arrive after lock TTL expired
+        if (agentState.stepCount > stepIndex) {
           log(
-            '[%s][%d] Pre-step: device context computed from messages (deviceId: %s)',
+            '[%s][%d] Step already completed (stepCount=%d), skipping',
             operationId,
             stepIndex,
-            deviceContext.activeDeviceId,
+            agentState.stepCount,
           );
+          return {
+            nextStepScheduled: false,
+            state: agentState,
+            stepResult: null,
+            success: true,
+          };
         }
-      }
 
-      // Execute step
-      const startAt = Date.now();
-      const stepResult = await runtime.step(currentState, currentContext);
+        // Early exit: skip step if operation is already in a terminal state
+        // This prevents executing expensive LLM/tool calls after timeout or interruption
+        if (
+          agentState.status === 'interrupted' ||
+          agentState.status === 'done' ||
+          agentState.status === 'error'
+        ) {
+          log(
+            '[%s][%d] Skipping step — operation already in terminal state: %s',
+            operationId,
+            stepIndex,
+            agentState.status,
+          );
 
-      // Check if the operation was interrupted while the step was executing
-      // (e.g., user clicked abort during a long LLM call)
-      const latestState = await this.coordinator.loadAgentState(operationId);
-      if (latestState?.status === 'interrupted') {
-        stepResult.newState.status = 'interrupted';
-        stepResult.newState.lastModified = new Date().toISOString();
-        log('[%s][%d] Operation was interrupted during step execution', operationId, stepIndex);
-      }
+          const reason = this.determineCompletionReason(agentState);
 
-      // Save state, coordinator will handle event sending automatically
-      await this.coordinator.saveStepResult(operationId, {
-        ...stepResult,
-        executionTime: Date.now() - startAt,
-        stepIndex, // placeholder
-      });
+          await this.completionLifecycle.emitSignalEvents(operationId, agentState, reason);
 
-      // Decide whether to schedule next step
-      const shouldContinue = this.shouldContinueExecution(
-        stepResult.newState,
-        stepResult.nextContext,
-      );
-      let nextStepScheduled = false;
+          // Dispatch completion hooks so consumers (e.g., bot local-mode promise) can finalize
+          await this.completionLifecycle.dispatchHooks(operationId, agentState, reason);
 
-      // Publish step complete event
-      await this.streamManager.publishStreamEvent(operationId, {
-        data: {
-          finalState: stepResult.newState,
-          nextStepScheduled,
-          stepIndex,
-        },
-        stepIndex,
-        type: 'step_complete',
-      });
+          return {
+            nextStepScheduled: false,
+            state: agentState,
+            stepResult: null,
+            success: true,
+          };
+        }
 
-      // Build enhanced step completion log & presentation data
-      const { presentation: stepPresentationData, summary: stepSummary } = buildStepPresentation(
-        stepResult,
-        Date.now() - startAt,
-      );
+        let beforeStepSignalEvents: Array<{ [key: string]: unknown; type: string }> = [];
 
-      const { usage } = stepResult.newState;
-      log(
-        '[%s][%d] completed %s | total: %s tokens / $%s | llm×%d | tools×%d',
-        operationId,
-        stepIndex,
-        stepSummary,
-        formatTokenCount(stepPresentationData.totalTokens),
-        stepPresentationData.totalCost.toFixed(4),
-        usage?.llm?.apiCalls ?? 0,
-        usage?.tools?.totalCalls ?? 0,
-      );
-
-      const toolsCalling = stepPresentationData.toolsCalling;
-      const content = stepPresentationData.content;
-
-      let afterStepSignalEvents: Array<{ [key: string]: unknown; type: string }> = [];
-
-      // Dispatch afterStep hooks (enriched with step presentation + tracking data)
-      try {
-        const metadata = stepResult.newState?.metadata || {};
-        const tracking = metadata._stepTracking || {};
-        const elapsedMs = stepResult.newState?.createdAt
-          ? Date.now() - new Date(stepResult.newState.createdAt).getTime()
-          : undefined;
-        const stepLabel = metadata?._stepLabel;
-
-        afterStepSignalEvents = toAgentSignalSnapshotEvents(
-          await emitAgentSignalSourceEvent(
+        // Dispatch beforeStep hooks
+        try {
+          const beforeStepMetadata = agentState?.metadata || {};
+          const beforeStepSignalEmission = await emitAgentSignalSourceEvent(
             {
               payload: {
-                agentId: metadata?.agentId,
+                agentId: beforeStepMetadata?.agentId,
                 operationId,
                 serializedContext: undefined,
                 stepIndex,
-                topicId: metadata?.topicId,
-                turnCount: stepResult.newState?.stepCount || 0,
+                topicId: beforeStepMetadata?.topicId,
+                turnCount: agentState?.stepCount || 0,
               },
-              sourceId: `${operationId}:after:${stepIndex}`,
-              sourceType: 'runtime.after_step',
+              sourceId: `${operationId}:before:${stepIndex}`,
+              sourceType: 'runtime.before_step',
             },
             {
-              agentId: metadata?.agentId,
+              agentId: beforeStepMetadata?.agentId,
               db: this.serverDB,
-              userId: metadata?.userId || this.userId,
+              userId: beforeStepMetadata?.userId || this.userId,
             },
             { ignoreError: true },
-          ),
-        );
-
-        await hookDispatcher.dispatch(
-          operationId,
-          'afterStep',
-          {
-            agentId: metadata?.agentId || '',
-            content,
-            elapsedMs,
-            executionTimeMs: stepPresentationData.executionTimeMs,
-            finalState: stepResult.newState,
-            ...(stepLabel && { stepLabel }),
-            lastLLMContent: tracking.lastLLMContent,
-            lastToolsCalling: tracking.lastToolsCalling,
+          );
+          beforeStepSignalEvents = toAgentSignalSnapshotEvents(beforeStepSignalEmission);
+          await hookDispatcher.dispatch(
             operationId,
-            reasoning: stepPresentationData.reasoning,
-            shouldContinue,
-            status: stepResult.newState?.status,
-            stepCost: stepPresentationData.stepCost,
-            stepIndex,
-            stepType: stepPresentationData.stepType,
-            steps: stepResult.newState?.stepCount || 0,
-            thinking: stepPresentationData.thinking,
-            toolCalls: stepResult.newState?.usage?.tools?.totalCalls,
-            toolsCalling: stepPresentationData.toolsCalling,
-            toolsResult: stepPresentationData.toolsResult,
-            topicId: metadata?.topicId,
-            totalCost: stepPresentationData.totalCost,
-            totalInputTokens: stepPresentationData.totalInputTokens,
-            totalOutputTokens: stepPresentationData.totalOutputTokens,
-            totalSteps: stepPresentationData.totalSteps,
-            totalTokens: stepPresentationData.totalTokens,
-            totalToolCalls: (tracking.totalToolCalls ?? 0) + (toolsCalling?.length ?? 0),
-            userId: metadata?.userId || this.userId,
-          },
-          metadata._hooks,
-        );
-      } catch (hookError) {
-        log('[%s] afterStep hook dispatch error: %O', operationId, hookError);
-      }
+            'beforeStep',
+            {
+              agentId: beforeStepMetadata?.agentId || '',
+              finalState: agentState,
+              operationId,
+              stepIndex,
+              steps: agentState?.stepCount || 0,
+              userId: beforeStepMetadata?.userId || this.userId,
+            },
+            beforeStepMetadata._hooks,
+          );
+        } catch (hookError) {
+          log('[%s] beforeStep hook dispatch error: %O', operationId, hookError);
+        }
 
-      await this.traceRecorder.appendStep(operationId, {
-        afterStepSignalEvents,
-        agentState,
-        beforeStepSignalEvents,
-        currentContext,
-        externalRetryCount,
-        presentation: stepPresentationData,
-        startedAt: startAt,
-        stepIndex,
-        stepResult,
-      });
-
-      // Update step tracking in state metadata for afterStep hooks (cross-step accumulator)
-      const hasAfterStepHooks = stepResult.newState.metadata?._hooks?.some(
-        (h: { type: string }) => h.type === 'afterStep',
-      );
-      if (hasAfterStepHooks && stepResult.newState.metadata) {
-        const prevTracking = stepResult.newState.metadata._stepTracking || {};
-        const newTotalToolCalls = (prevTracking.totalToolCalls ?? 0) + (toolsCalling?.length ?? 0);
-
-        // Truncate content to 1800 chars to keep state small
-        const truncatedContent = content
-          ? content.length > 1800
-            ? content.slice(0, 1800) + '...'
-            : content
-          : prevTracking.lastLLMContent;
-
-        const updatedTracking = {
-          lastLLMContent: truncatedContent,
-          lastToolsCalling: toolsCalling || prevTracking.lastToolsCalling,
-          totalToolCalls: newTotalToolCalls,
-        };
-
-        // Persist tracking state for next step
-        stepResult.newState.metadata._stepTracking = updatedTracking;
-        await this.coordinator.saveAgentState(operationId, stepResult.newState);
-      }
-
-      if (shouldContinue && stepResult.nextContext && this.queueService) {
-        const nextStepIndex = stepIndex + 1;
-        const delay = this.calculateStepDelay(stepResult);
-        const priority = this.calculatePriority(stepResult);
-
-        await this.queueService.scheduleMessage({
-          context: stepResult.nextContext,
-          delay,
-          endpoint: `${this.baseURL}/run`,
+        // Create Agent and Runtime instances
+        // Use agentState.metadata which contains the full app context (topicId, agentId, etc.)
+        // operationMetadata only contains basic fields (agentConfig, modelRuntimeConfig, userId)
+        const { runtime } = await this.createAgentRuntime({
+          metadata: agentState?.metadata,
           operationId,
-          priority,
-          retryDelay:
-            typeof stepResult.newState.metadata?.queueRetryDelay === 'string'
-              ? stepResult.newState.metadata.queueRetryDelay
-              : undefined,
-          retries:
-            typeof stepResult.newState.metadata?.queueRetries === 'number'
-              ? stepResult.newState.metadata.queueRetries
-              : undefined,
-          stepIndex: nextStepIndex,
+          stepIndex,
         });
-        nextStepScheduled = true;
 
-        log('[%s][%d] Scheduled next step %d', operationId, stepIndex, nextStepIndex);
-      }
+        // Handle human intervention
+        let currentContext = context;
+        let currentState = agentState;
 
-      // Check if operation is complete
-      if (!shouldContinue) {
-        const reason = this.determineCompletionReason(stepResult.newState);
+        if (humanInput || approvedToolCall || rejectionReason) {
+          const interventionResult = await this.humanIntervention.process(currentState, {
+            approvedToolCall,
+            humanInput,
+            rejectAndContinue,
+            rejectionReason,
+            toolMessageId,
+          });
+          currentState = interventionResult.newState;
+          currentContext = interventionResult.nextContext;
+        }
 
-        const completionSignalEvents = await this.completionLifecycle.emitSignalEvents(
-          operationId,
+        // Pre-step computation: extract device context from DB messages
+        // Follows front-end computeStepContext pattern — computed at step boundary, not inside executors
+        if (!currentState.metadata?.activeDeviceId) {
+          const deviceContext = await this.computeDeviceContext(currentState);
+          if (deviceContext && currentState.metadata) {
+            currentState.metadata.activeDeviceId = deviceContext.activeDeviceId;
+            currentState.metadata.devicePlatform = deviceContext.devicePlatform;
+            currentState.metadata.deviceSystemInfo = deviceContext.deviceSystemInfo;
+            log(
+              '[%s][%d] Pre-step: device context computed from messages (deviceId: %s)',
+              operationId,
+              stepIndex,
+              deviceContext.activeDeviceId,
+            );
+          }
+        }
+
+        // Execute step
+        const startAt = Date.now();
+        const stepResult = await runtime.step(currentState, currentContext);
+
+        // Check if the operation was interrupted while the step was executing
+        // (e.g., user clicked abort during a long LLM call)
+        const latestState = await this.coordinator.loadAgentState(operationId);
+        if (latestState?.status === 'interrupted') {
+          stepResult.newState.status = 'interrupted';
+          stepResult.newState.lastModified = new Date().toISOString();
+          log('[%s][%d] Operation was interrupted during step execution', operationId, stepIndex);
+        }
+
+        // Save state, coordinator will handle event sending automatically
+        await this.coordinator.saveStepResult(operationId, {
+          ...stepResult,
+          executionTime: Date.now() - startAt,
+          stepIndex, // placeholder
+        });
+
+        // Decide whether to schedule next step
+        const shouldContinue = this.shouldContinueExecution(
           stepResult.newState,
-          reason,
+          stepResult.nextContext,
+        );
+        let nextStepScheduled = false;
+
+        // Publish step complete event
+        await this.streamManager.publishStreamEvent(operationId, {
+          data: {
+            finalState: stepResult.newState,
+            nextStepScheduled,
+            stepIndex,
+          },
+          stepIndex,
+          type: 'step_complete',
+        });
+
+        // Build enhanced step completion log & presentation data
+        const { presentation: stepPresentationData, summary: stepSummary } = buildStepPresentation(
+          stepResult,
+          Date.now() - startAt,
         );
 
-        // Dispatch completion hooks
-        await this.completionLifecycle.dispatchHooks(operationId, stepResult.newState, reason);
+        const { usage } = stepResult.newState;
+        log(
+          '[%s][%d] completed %s | total: %s tokens / $%s | llm×%d | tools×%d',
+          operationId,
+          stepIndex,
+          stepSummary,
+          formatTokenCount(stepPresentationData.totalTokens),
+          stepPresentationData.totalCost.toFixed(4),
+          usage?.llm?.apiCalls ?? 0,
+          usage?.tools?.totalCalls ?? 0,
+        );
 
-        // Finalize tracing snapshot. The error catch below uses the same
-        // recorder so propagated failures still write the canonical S3
-        // snapshot instead of orphaning the partial ().
-        await this.traceRecorder.finalize(operationId, {
-          appendEventsToLastStep: completionSignalEvents,
-          completionReason: reason,
-          error: stepResult.newState.error
-            ? {
-                message:
-                  this.completionLifecycle.extractErrorMessage(stepResult.newState.error) ??
-                  JSON.stringify(stepResult.newState.error),
-                type: String(
-                  stepResult.newState.error.type ??
-                    stepResult.newState.error.errorType ??
-                    'unknown',
-                ),
-              }
-            : undefined,
-          state: stepResult.newState,
+        const toolsCalling = stepPresentationData.toolsCalling;
+        const content = stepPresentationData.content;
+
+        let afterStepSignalEvents: Array<{ [key: string]: unknown; type: string }> = [];
+
+        // Dispatch afterStep hooks (enriched with step presentation + tracking data)
+        try {
+          const metadata = stepResult.newState?.metadata || {};
+          const tracking = metadata._stepTracking || {};
+          const elapsedMs = stepResult.newState?.createdAt
+            ? Date.now() - new Date(stepResult.newState.createdAt).getTime()
+            : undefined;
+          const stepLabel = metadata?._stepLabel;
+
+          afterStepSignalEvents = toAgentSignalSnapshotEvents(
+            await emitAgentSignalSourceEvent(
+              {
+                payload: {
+                  agentId: metadata?.agentId,
+                  operationId,
+                  serializedContext: undefined,
+                  stepIndex,
+                  topicId: metadata?.topicId,
+                  turnCount: stepResult.newState?.stepCount || 0,
+                },
+                sourceId: `${operationId}:after:${stepIndex}`,
+                sourceType: 'runtime.after_step',
+              },
+              {
+                agentId: metadata?.agentId,
+                db: this.serverDB,
+                userId: metadata?.userId || this.userId,
+              },
+              { ignoreError: true },
+            ),
+          );
+
+          await hookDispatcher.dispatch(
+            operationId,
+            'afterStep',
+            {
+              agentId: metadata?.agentId || '',
+              content,
+              elapsedMs,
+              executionTimeMs: stepPresentationData.executionTimeMs,
+              finalState: stepResult.newState,
+              ...(stepLabel && { stepLabel }),
+              lastLLMContent: tracking.lastLLMContent,
+              lastToolsCalling: tracking.lastToolsCalling,
+              operationId,
+              reasoning: stepPresentationData.reasoning,
+              shouldContinue,
+              status: stepResult.newState?.status,
+              stepCost: stepPresentationData.stepCost,
+              stepIndex,
+              stepType: stepPresentationData.stepType,
+              steps: stepResult.newState?.stepCount || 0,
+              thinking: stepPresentationData.thinking,
+              toolCalls: stepResult.newState?.usage?.tools?.totalCalls,
+              toolsCalling: stepPresentationData.toolsCalling,
+              toolsResult: stepPresentationData.toolsResult,
+              topicId: metadata?.topicId,
+              totalCost: stepPresentationData.totalCost,
+              totalInputTokens: stepPresentationData.totalInputTokens,
+              totalOutputTokens: stepPresentationData.totalOutputTokens,
+              totalSteps: stepPresentationData.totalSteps,
+              totalTokens: stepPresentationData.totalTokens,
+              totalToolCalls: (tracking.totalToolCalls ?? 0) + (toolsCalling?.length ?? 0),
+              userId: metadata?.userId || this.userId,
+            },
+            metadata._hooks,
+          );
+        } catch (hookError) {
+          log('[%s] afterStep hook dispatch error: %O', operationId, hookError);
+        }
+
+        await this.traceRecorder.appendStep(operationId, {
+          afterStepSignalEvents,
+          agentState,
+          beforeStepSignalEvents,
+          currentContext,
+          externalRetryCount,
+          presentation: stepPresentationData,
+          startedAt: startAt,
+          stepIndex,
+          stepResult,
         });
-      }
 
-      return {
-        nextStepScheduled,
-        state: stepResult.newState,
-        stepResult,
-        success: true,
-      };
+        // Update step tracking in state metadata for afterStep hooks (cross-step accumulator)
+        const hasAfterStepHooks = stepResult.newState.metadata?._hooks?.some(
+          (h: { type: string }) => h.type === 'afterStep',
+        );
+        if (hasAfterStepHooks && stepResult.newState.metadata) {
+          const prevTracking = stepResult.newState.metadata._stepTracking || {};
+          const newTotalToolCalls =
+            (prevTracking.totalToolCalls ?? 0) + (toolsCalling?.length ?? 0);
+
+          // Truncate content to 1800 chars to keep state small
+          const truncatedContent = content
+            ? content.length > 1800
+              ? content.slice(0, 1800) + '...'
+              : content
+            : prevTracking.lastLLMContent;
+
+          const updatedTracking = {
+            lastLLMContent: truncatedContent,
+            lastToolsCalling: toolsCalling || prevTracking.lastToolsCalling,
+            totalToolCalls: newTotalToolCalls,
+          };
+
+          // Persist tracking state for next step
+          stepResult.newState.metadata._stepTracking = updatedTracking;
+          await this.coordinator.saveAgentState(operationId, stepResult.newState);
+        }
+
+        if (shouldContinue && stepResult.nextContext && this.queueService) {
+          const nextStepIndex = stepIndex + 1;
+          const delay = this.calculateStepDelay(stepResult);
+          const priority = this.calculatePriority(stepResult);
+
+          await this.queueService.scheduleMessage({
+            context: stepResult.nextContext,
+            delay,
+            endpoint: `${this.baseURL}/run`,
+            operationId,
+            priority,
+            retryDelay:
+              typeof stepResult.newState.metadata?.queueRetryDelay === 'string'
+                ? stepResult.newState.metadata.queueRetryDelay
+                : undefined,
+            retries:
+              typeof stepResult.newState.metadata?.queueRetries === 'number'
+                ? stepResult.newState.metadata.queueRetries
+                : undefined,
+            stepIndex: nextStepIndex,
+          });
+          nextStepScheduled = true;
+
+          log('[%s][%d] Scheduled next step %d', operationId, stepIndex, nextStepIndex);
+        }
+
+        // Record final agent-level usage on the invoke_agent span. Done on every
+        // step so partial trees (e.g. interrupted runs) still carry the
+        // last-known token counters.
+        invokeAgentSpan.setAttributes(
+          buildInvokeAgentResultAttributes({
+            inputTokens: stepResult.newState.usage?.llm?.tokens?.input,
+            outputTokens: stepResult.newState.usage?.llm?.tokens?.output,
+            stepCount: stepResult.newState.stepCount,
+          }),
+        );
+
+        // Check if operation is complete
+        if (!shouldContinue) {
+          const reason = this.determineCompletionReason(stepResult.newState);
+          invokeAgentSpan.setAttributes(
+            buildInvokeAgentResultAttributes({ completionReason: reason }),
+          );
+
+          const completionSignalEvents = await this.completionLifecycle.emitSignalEvents(
+            operationId,
+            stepResult.newState,
+            reason,
+          );
+
+          // Dispatch completion hooks
+          await this.completionLifecycle.dispatchHooks(operationId, stepResult.newState, reason);
+
+          // Finalize tracing snapshot. The error catch below uses the same
+          // recorder so propagated failures still write the canonical S3
+          // snapshot instead of orphaning the partial ().
+          await this.traceRecorder.finalize(operationId, {
+            appendEventsToLastStep: completionSignalEvents,
+            completionReason: reason,
+            error: stepResult.newState.error
+              ? {
+                  message:
+                    this.completionLifecycle.extractErrorMessage(stepResult.newState.error) ??
+                    JSON.stringify(stepResult.newState.error),
+                  type: String(
+                    stepResult.newState.error.type ??
+                      stepResult.newState.error.errorType ??
+                      'unknown',
+                  ),
+                }
+              : undefined,
+            state: stepResult.newState,
+          });
+        }
+
+        return {
+          nextStepScheduled,
+          state: stepResult.newState,
+          stepResult,
+          success: true,
+        };
+      });
     } catch (error) {
+      invokeAgentSpan.recordException(error as Error);
+      invokeAgentSpan.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      invokeAgentSpan.setAttributes(
+        buildInvokeAgentResultAttributes({ completionReason: 'error' }),
+      );
+
       log('Step %d failed for operation %s: %O', stepIndex, operationId, error);
       const formattedError = formatErrorForState(error);
 
@@ -987,6 +1052,7 @@ export class AgentRuntimeService {
 
       throw error;
     } finally {
+      invokeAgentSpan.end();
       // Release lock so legitimate retries or next operations can proceed.
       // If Vercel force-kills the process, this won't execute — the lock
       // auto-expires after TTL (35s), allowing QStash retries to self-heal.
