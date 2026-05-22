@@ -17,7 +17,7 @@ export type ToolResultKind = 'artifact' | 'mutation' | 'read';
 
 export interface ToolResultWithKind {
   /** Parsed tool result data. */
- nknown;
+  data: unknown;
   /** Tool API name (e.g. 'writeMemory'). */
   apiName?: string;
   /** Discrimination tag set by the tool implementation. */
