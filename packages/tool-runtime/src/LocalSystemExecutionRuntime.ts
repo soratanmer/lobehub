@@ -1,6 +1,7 @@
-import type { ServiceResult } from '@lobechat/tool-runtime';
-import { ComputerRuntime } from '@lobechat/tool-runtime';
 import type { BuiltinServerRuntimeOutput } from '@lobechat/types';
+
+import { ComputerRuntime } from './ComputerRuntime';
+import type { ServiceResult } from './types';
 
 /**
  * Service interface for local system operations.

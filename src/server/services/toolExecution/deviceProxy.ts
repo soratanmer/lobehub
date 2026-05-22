@@ -94,7 +94,7 @@ export class DeviceProxy {
     params: { deviceId: string; userId: string },
     toolCall: { apiName: string; arguments: string; identifier: string },
     timeout = 30_000,
-  ): Promise<{ content: string; error?: string; success: boolean }> {
+  ): Promise<{ content: string; error?: string; state?: unknown; success: boolean }> {
     const client = this.getClient();
     if (!client) {
       return {
