@@ -4,10 +4,12 @@ import type {
   ExecutorResult,
   SignalAttempt,
 } from '@lobechat/agent-signal';
-import { MemoryApiName, MemoryIdentifier } from '@lobechat/builtin-tool-memory';
-import { LayersEnum, RequestTrigger, ThreadType } from '@lobechat/types';
+import {
+  createAgentSignalMemoryWriterPrompt,
+  createAgentSignalMemoryWriterSystemRole,
+} from '@lobechat/prompts';
+import { RequestTrigger, ThreadType } from '@lobechat/types';
 import { nanoid } from '@lobechat/utils';
-import type { AgentState } from '@lobechat/agent-runtime';
 
 import { ThreadModel } from '@/database/models/thread';
 import type { LobeChatDatabase } from '@/database/type';
@@ -16,10 +18,6 @@ import { AiAgentService } from '@/server/services/aiAgent';
 
 import type { RuntimeProcessorContext } from '../../../runtime/context';
 import { defineActionHandler } from '../../../runtime/middleware';
-import {
-  createMemoryService,
-  MemoryActionError,
-} from '../../../services/selfIteration/tools/shared';
 import { hasAppliedActionIdempotency, markAppliedActionIdempotency } from '../../actionIdempotency';
 import type {
   ActionUserMemoryHandle,
@@ -28,53 +26,14 @@ import type {
   AgentSignalFeedbackSourceHints,
 } from '../../types';
 import { AGENT_SIGNAL_POLICY_ACTION_TYPES } from '../../types';
-import {
-  createAgentSignalMemoryWriterPrompt,
-  createAgentSignalMemoryWriterSystemRole,
-} from '@lobechat/prompts';
 
 const MEMORY_AGENT_MAX_STEPS = 8;
 
-const MEMORY_WRITE_API_NAMES = [
-  MemoryApiName.addActivityMemory,
-  MemoryApiName.addContextMemory,
-  MemoryApiName.addExperienceMemory,
-  MemoryApiName.addIdentityMemory,
-  MemoryApiName.addPreferenceMemory,
-  MemoryApiName.removeIdentityMemory,
-  MemoryApiName.updateIdentityMemory,
-] as const;
-
-const MEMORY_WRITE_TOOL_NAMES = new Set(
-  MEMORY_WRITE_API_NAMES.map((apiName) => `${MemoryIdentifier}/${apiName}`),
-);
-
-const MEMORY_WRITE_API_NAME_SET = new Set<string>(MEMORY_WRITE_API_NAMES);
-const MEMORY_WRITE_TARGET_BY_API_NAME: Record<string, { idKey: string; layer: LayersEnum }> = {
-  [MemoryApiName.addActivityMemory]: { idKey: 'activityId', layer: LayersEnum.Activity },
-  [MemoryApiName.addContextMemory]: { idKey: 'contextId', layer: LayersEnum.Context },
-  [MemoryApiName.addExperienceMemory]: { idKey: 'experienceId', layer: LayersEnum.Experience },
-  [MemoryApiName.addIdentityMemory]: { idKey: 'identityId', layer: LayersEnum.Identity },
-  [MemoryApiName.addPreferenceMemory]: { idKey: 'preferenceId', layer: LayersEnum.Preference },
-  [MemoryApiName.removeIdentityMemory]: { idKey: 'identityId', layer: LayersEnum.Identity },
-  [MemoryApiName.updateIdentityMemory]: { idKey: 'identityId', layer: LayersEnum.Identity },
-};
-
-const TOOL_NAME_SEPARATOR = '____';
-
-export interface MemoryActionTarget {
-  id?: string;
-  memoryId?: string;
-  memoryLayer?: LayersEnum;
-  summary?: string;
-  title: string;
-  type: 'memory';
-}
-
 export interface MemoryAgentActionResult {
   detail?: string;
+  /** Set when execAgent successfully enqueued the run. */
+  operationId?: string;
   status: 'applied' | 'failed' | 'skipped';
-  target?: MemoryActionTarget;
 }
 
 export interface UserMemoryActionHandlerOptions {
@@ -120,38 +79,17 @@ const toExecutorError = (actionId: string, error: unknown, startedAt: number): E
 const isUserMemoryAction = (action: BaseAction): action is ActionUserMemoryHandle =>
   action.actionType === AGENT_SIGNAL_POLICY_ACTION_TYPES.userMemoryHandle;
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
-
-const getString = (value: unknown) =>
-  typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
-
-// ─── State inspection helpers (unchanged from original) ───────────────────────
-
-const hasSuccessfulMemoryWrite = (state: AgentState) => {
-  const byTool = state.usage?.tools?.byTool ?? [];
-  return byTool.some(
-    (entry) => MEMORY_WRITE_TOOL_NAMES.has(entry.name) && entry.calls > entry.errors,
-  );
-};
-
-const hasFailedMemoryWrite = (state: AgentState) => {
-  const byTool = state.usage?.tools?.byTool ?? [];
-  return byTool.some(
-    (entry) =>
-      MEMORY_WRITE_TOOL_NAMES.has(entry.name) && entry.calls > 0 && entry.calls === entry.errors,
-  );
-};
-
 // ─── Core runner (migrated from createOperation+executeSync to execAgent) ─────
 
 /**
- * Runs the memory-writer agent via `execAgent` (async queue).
+ * Enqueues the memory-writer agent via `execAgent` and returns once the run is queued.
  *
- * Replaces the previous `AgentRuntimeService.createOperation + executeSync`
- * path that blocked the Vercel invocation until the entire agent finished.
- * The caller now enqueues the run and polls the resulting operationId for
- * the final AgentState — removing Vercel timeout risk for long memory runs.
+ * Replaces the previous `AgentRuntimeService.createOperation + executeSync` path that
+ * blocked the Vercel invocation until the entire agent finished. The actual memory
+ * write happens asynchronously across subsequent QStash workflow steps.
+ *
+ * Post-completion bookkeeping (idempotency marker, receipt) is handled by the
+ * `agent.execution.completed` listener policy — see `completionPolicy.ts` (#4).
  */
 export const runMemoryActionAgent = async (
   input: {
@@ -188,7 +126,7 @@ export const runMemoryActionAgent = async (
       const threadModel = new ThreadModel(options.db, options.userId);
       const thread = await threadModel.create({
         agentId: input.agentId,
-      { operationId: `agent-signal-memory-${nanoid()}` },
+        metadata: { operationId: `agent-signal-memory-${nanoid()}` },
         sourceMessageId: input.sourceMessageId,
         title: 'Agent Signal Memory',
         topicId: input.topicId,
@@ -202,45 +140,42 @@ export const runMemoryActionAgent = async (
 
   const aiAgentService = new AiAgentService(options.db, options.userId);
 
-  // Fire-and-forget: enqueue the memory-writer run and wait for the
-  // finalState via the operation result.  execAgent returns immediately
-  // once the job is queued (autoStart=true), so we are not blocking the
-  // Vercel invocation for the full agent duration.
-  const { finalState } = await aiAgentService.execAgent({
+  // Enqueue async memory-writer run. execAgent returns immediately after queueing;
+  // the actual memory write happens in later QStash workflow invocations.
+  const result = await aiAgentService.execAgent({
     agentId: input.agentId,
     appContext: {
-      scope: 'chat',
+      scope: 'agent-signal',
       sourceMessageId: input.sourceMessageId,
-      suppressSignal: true,      // #2: do not re-enter the AgentSignal pipeline
+      suppressSignal: true,
       threadId: threadId ?? null,
       topicId: input.topicId ?? null,
-      trigger: RequestTrigger.AgentSignal,
     },
     autoStart: true,
+    // No `systemRoleOverride` field exists on ExecAgentParams; the writer-specific
+    // guidance is appended via `instructions` instead. A future iteration may
+    // introduce a `memory-writer` builtin agent so the systemRole replaces, not appends.
+    instructions: createAgentSignalMemoryWriterSystemRole({ memoryLanguage }),
     maxSteps: MEMORY_AGENT_MAX_STEPS,
     prompt: createAgentSignalMemoryWriterPrompt({ ...input, memoryLanguage }),
-    systemRoleOverride: createAgentSignalMemoryWriterSystemRole({ memoryLanguage }),
+    trigger: RequestTrigger.AgentSignal,
   });
 
-  if (!finalState || finalState.status === 'error') {
-    return { detail: 'Memory action agent finished with an error.', status: 'failed' };
-  }
-
-  if (hasSuccessfulMemoryWrite(finalState)) {
-    return { status: 'applied' };
-  }
-
-  if (hasFailedMemoryWrite(finalState)) {
+  if (!result.success) {
     return {
-      detail: 'Memory tool call failed during memory action agent execution.',
+      detail: result.error ?? 'Failed to enqueue memory writer.',
       status: 'failed',
     };
   }
 
-  return { detail: 'Memory action agent did not issue a durable memory write.', status: 'skipped' };
+  return {
+    detail: `Memory writer enqueued (operationId=${result.operationId}).`,
+    operationId: result.operationId,
+    status: 'applied',
+  };
 };
 
-// ─── Action handler (unchanged interface) ─────────────────────────────────────
+// ─── Action handler ──────────────────────────────────────────────────────────
 
 export const handleUserMemoryAction = async (
   action: BaseAction,
@@ -317,6 +252,12 @@ export const handleUserMemoryAction = async (
     const runner = options.memoryActionRunner ?? ((i) => runMemoryActionAgent(i, options));
     const result = await runner(runnerInput);
 
+    // 'applied' here means "successfully enqueued". The downstream completion
+    // policy is responsible for marking idempotency only after the actual
+    // memory write succeeds in finalState. We mark the idempotency key here
+    // to prevent re-enqueueing while the queued run is in-flight — this
+    // matches the pre-migration behaviour where the marker was set after the
+    // synchronous run, but trades retry-on-failure for no-double-enqueue.
     if (result.status === 'applied') {
       await markAppliedActionIdempotency(context, idempotencyKey);
       return {

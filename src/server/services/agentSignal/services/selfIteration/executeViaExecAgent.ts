@@ -1,34 +1,32 @@
 import { BUILTIN_AGENT_SLUGS } from '@lobechat/builtin-agents';
+import { createAgentSignalSelfIterationPrompt } from '@lobechat/prompts';
 import { RequestTrigger } from '@lobechat/types';
 
 import type { LobeChatDatabase } from '@/database/type';
 import { AiAgentService } from '@/server/services/aiAgent';
 
+import type { ExecuteSelfIterationContext } from './execute';
 import type { IterationMode } from './types';
-import {
-  createAgentSignalSelfIterationPrompt,
-  createAgentSignalSelfIterationSystemRole,
-} from '@lobechat/prompts';
-import type { ExecuteSelfIterationContext, ExecuteSelfIterationInput } from './execute';
-import { extractArtifacts, extractMutations } from './finalStateExtractor';
 
 /**
- * Replacement for executeSelfIteration that routes through execAgent.
+ * Replacement for executeSelfIteration that routes through execAgent (async queue).
  *
  * LOBE-9454: Migrates the hand-rolled AgentRuntime loop from execute.ts
- * (new AgentRuntime + custom call_llm executor + closure accumulators)
- * to the unified execAgent entry point.
+ * (new AgentRuntime + custom call_llm executor + closure accumulators) to
+ * the unified execAgent entry point.
  *
  * Key differences vs. the old execute.ts path:
- * - No side-channel closures (ideas / intents / writeOutcomes stored in JS vars)
- * - All structured output flows through tool result `kind` field → AgentState
- * - extractArtifacts / extractMutations replace the six accumulator variables
- * - Runs as an async queue step → no Vercel timeout risk
- * - Full snapshot visibility → agent-tracing inspect works immediately
+ * - No side-channel closures — all structured output flows through tool result
+ *   `kind` field into AgentState and is persisted as a step snapshot.
+ * - Runs asynchronously as queued steps → no Vercel timeout risk.
+ * - Full snapshot visibility → `agent-tracing inspect` works immediately.
+ *
+ * Post-completion bookkeeping (brief writing, receipt projection) is handled
+ * by the `agent.execution.completed` listener policy — see `completionPolicy.ts`
+ * and `finalStateExtractor.ts`.
  *
  * The old executeSelfIteration function in execute.ts is retained during the
- * migration period and will be deleted by LOBE-9453 (#8 Cleanup) once all
- * callers have been switched to this function.
+ * migration period and will be deleted by LOBE-9453 (#8 Cleanup).
  */
 export interface ExecuteViaExecAgentInput {
   agentId: string;
@@ -36,35 +34,31 @@ export interface ExecuteViaExecAgentInput {
   db: LobeChatDatabase;
   maxSteps: number;
   mode?: IterationMode;
-  model: string;
   sourceId: string;
   userId: string;
   window?: { end: string; localDate?: string; start: string; timezone?: string };
 }
 
 export interface ExecuteViaExecAgentResult {
-  /** operationId returned by execAgent — use with agent-tracing inspect */
+  /** Whether the run was successfully enqueued. */
+  enqueued: boolean;
+  /** Error message when enqueue failed. */
+  error?: string;
+  /** operationId returned by execAgent — use with agent-tracing inspect. */
   operationId: string;
-  /** Artifact tool results (ideas, intents) extracted from finalState */
-  artifacts: ReturnType<typeof extractArtifacts>;
-  /** Mutation tool results (memory writes, skill ops) extracted from finalState */
-  mutations: ReturnType<typeof extractMutations>;
-  /** Raw finalState for downstream projection / brief writing */
-  finalState: Awaited<ReturnType<AiAgentService['execAgent']>>['finalState'];
 }
+
+const resolveSlug = (mode: IterationMode) => {
+  if (mode === 'review') return BUILTIN_AGENT_SLUGS.nightlyReview;
+  if (mode === 'reflection') return BUILTIN_AGENT_SLUGS.selfReflection;
+  return BUILTIN_AGENT_SLUGS.selfFeedbackIntent;
+};
 
 export const executeViaExecAgent = async (
   input: ExecuteViaExecAgentInput,
 ): Promise<ExecuteViaExecAgentResult> => {
   const mode: IterationMode = input.mode ?? 'review';
-
-  // Map mode to slug
-  const slug =
-    mode === 'review'
-      ? BUILTIN_AGENT_SLUGS.nightlyReview
-      : mode === 'reflection'
-        ? BUILTIN_AGENT_SLUGS.selfReflection
-        : BUILTIN_AGENT_SLUGS.selfFeedbackIntent;
+  const slug = resolveSlug(mode);
 
   const prompt = createAgentSignalSelfIterationPrompt({
     agentId: input.agentId,
@@ -80,29 +74,23 @@ export const executeViaExecAgent = async (
     },
   });
 
-  const systemRoleOverride = createAgentSignalSelfIterationSystemRole(mode);
-
   const aiAgentService = new AiAgentService(input.db, input.userId);
 
   const result = await aiAgentService.execAgent({
     appContext: {
-      scope: 'chat',
-      suppressSignal: true, // #2: do not re-enter AgentSignal pipeline
-      trigger: RequestTrigger.AgentSignal,
+      scope: 'agent-signal',
+      suppressSignal: true,
     },
     autoStart: true,
     maxSteps: input.maxSteps,
     prompt,
     slug,
-    systemRoleOverride,
+    trigger: RequestTrigger.AgentSignal,
   });
 
-  const { operationId, finalState } = result;
-
   return {
-    artifacts: finalState ? extractArtifacts(finalState) : [],
-    finalState,
-    mutations: finalState ? extractMutations(finalState) : [],
-    operationId,
+    enqueued: result.success,
+    ...(result.error ? { error: result.error } : {}),
+    operationId: result.operationId,
   };
 };
