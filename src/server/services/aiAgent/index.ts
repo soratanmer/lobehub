@@ -1876,7 +1876,10 @@ export class AiAgentService {
             userId: this.userId,
           },
         ).catch((error) => {
-          log('execAgent: failed to enqueue user message Agent Signal source event: %O', error);
+          console.error(
+            '[execAgent] failed to enqueue user message Agent Signal source event:',
+            error,
+          );
         });
       }
     }
