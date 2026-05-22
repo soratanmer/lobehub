@@ -1852,26 +1852,33 @@ export class AiAgentService {
       // It must not block the primary agent execution path; local Workflow/QStash
       // stalls would otherwise leave the conversation with only the user message
       // persisted and no assistant placeholder or operation row.
-      void enqueueAgentSignalSourceEvent(
-        {
-          payload: {
-            agentId: resolvedAgentId,
-            message: prompt,
-            threadId: appContext?.threadId ?? undefined,
-            topicId,
-            trigger,
-            messageId: userMessageRecord.id,
+      //
+      // Skip the emit entirely when this execAgent invocation is itself an Agent
+      // Signal background run (memory-writer, self-iteration reviewer, etc.).
+      // Otherwise the analyzeIntent policy would re-analyze the synthesised
+      // user prompt and recursively trigger another Agent Signal pass.
+      if (!appContext?.suppressSignal) {
+        void enqueueAgentSignalSourceEvent(
+          {
+            payload: {
+              agentId: resolvedAgentId,
+              message: prompt,
+              threadId: appContext?.threadId ?? undefined,
+              topicId,
+              trigger,
+              messageId: userMessageRecord.id,
+            },
+            sourceId: userMessageRecord.id,
+            sourceType: 'agent.user.message',
           },
-          sourceId: userMessageRecord.id,
-          sourceType: 'agent.user.message',
-        },
-        {
-          agentId: resolvedAgentId,
-          userId: this.userId,
-        },
-      ).catch((error) => {
-        log('execAgent: failed to enqueue user message Agent Signal source event: %O', error);
-      });
+          {
+            agentId: resolvedAgentId,
+            userId: this.userId,
+          },
+        ).catch((error) => {
+          log('execAgent: failed to enqueue user message Agent Signal source event: %O', error);
+        });
+      }
     }
 
     // 14. Create assistant message placeholder in database
