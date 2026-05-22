@@ -1067,6 +1067,26 @@ When I am ___, I need ___
   'workspace.billing.seats.failedToast': 'Failed to update seats.',
   'workspace.billing.seats.save': 'Save',
   'workspace.billing.seats.successToast': 'Seats updated to {{seats}}.',
+  'workspace.billing.paymentMethods.addCta': 'Add payment method',
+  'workspace.billing.paymentMethods.defaultBadge': 'Default',
+  'workspace.billing.paymentMethods.empty':
+    'No payment methods yet. Add one via Stripe portal — this workspace will be billed once a card is set as default.',
+  'workspace.billing.paymentMethods.expires': 'Expires {{date}}',
+  'workspace.billing.paymentMethods.managePortalCta': 'Manage in Stripe portal',
+  'workspace.billing.paymentMethods.portalFailed': 'Failed to open billing portal',
+  'workspace.billing.paymentMethods.remove': 'Remove',
+  'workspace.billing.paymentMethods.removeConfirmContent':
+    'This card will no longer be used to pay for this workspace.',
+  'workspace.billing.paymentMethods.removeConfirmTitle': 'Remove this card?',
+  'workspace.billing.paymentMethods.removeDefaultWarning':
+    'This is the default card. Removing it without setting another one will cause the next renewal to fail.',
+  'workspace.billing.paymentMethods.removeFailed': 'Failed to remove payment method',
+  'workspace.billing.paymentMethods.setDefault': 'Set as default',
+  'workspace.billing.paymentMethods.setDefaultFailed': 'Failed to set default',
+  'workspace.billing.paymentMethods.setDefaultSuccess': 'Default updated',
+  'workspace.billing.paymentMethods.subtitle':
+    "Cards on file for this workspace. Any owner can add or remove. Stripe issues a new card record per workspace — your personal card isn't directly linked.",
+  'workspace.billing.paymentMethods.title': 'Payment methods',
   'workspace.billing.title': 'Billing',
   'workspace.billing.totalHint': 'Billed monthly · cancel anytime',
   'workspace.billing.totalLabel': 'Total / month',
@@ -1455,10 +1475,12 @@ When I am ___, I need ___
   'workspace.invitePage.expiredSubtitle':
     'This invitation has expired. Ask the team owner to send a new one.',
   'workspace.invitePage.expiredTitle': 'Invitation Expired',
+  'workspace.invitePage.expiresLabel': 'Expires',
   'workspace.invitePage.goHome': 'Go Home',
   'workspace.invitePage.goToWorkspace': 'Go to Workspace',
   'workspace.invitePage.invitedAs': 'Invited as',
   'workspace.invitePage.invitedBy': 'Invited by',
+  'workspace.invitePage.invitedEmail': 'Invited email',
   'workspace.invitePage.invitedTo': 'Invited to join',
   'workspace.invitePage.notFoundSubtitle':
     'This invitation link is invalid. Double-check the URL or ask the team owner to send a new one.',
@@ -1476,6 +1498,10 @@ When I am ___, I need ___
   'workspace.members.empty': 'No members yet',
   'workspace.members.invite.emailLabel': 'Email Address',
   'workspace.members.invite.emailPlaceholder': 'jane@example.com',
+  'workspace.members.invite.errors.alreadyInvited':
+    '{{email}} already has a pending invitation. Resend or revoke it from the list below.',
+  'workspace.members.invite.errors.alreadyMember':
+    '{{email}} is already a member of this workspace.',
   'workspace.members.invite.failed': 'Failed to send invitation',
   'workspace.members.invite.roleLabel': 'Role',
   'workspace.members.invite.submit': 'Invite',
