@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { withContentMutation } from '@/business/server/trpc-middlewares/rbacPermission';
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { MessageModel } from '@/database/models/message';
 import { ThreadModel } from '@/database/models/thread';
@@ -48,7 +48,7 @@ const threadProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) =
 
 export const threadRouter = router({
   createThread: threadProcedure
-    .use(withContentMutation('topic:create'))
+    .use(withScopedPermission('topic:create'))
     .input(createThreadSchema)
     .mutation(async ({ input, ctx }) => {
       const thread = ensureThreadCreated(
@@ -67,7 +67,7 @@ export const threadRouter = router({
       return thread.id;
     }),
   createThreadWithMessage: threadProcedure
-    .use(withContentMutation('topic:create'))
+    .use(withScopedPermission('topic:create'))
     .input(
       createThreadSchema.extend({
         message: z.any(),
@@ -102,20 +102,20 @@ export const threadRouter = router({
     }),
 
   removeAllThreads: threadProcedure
-    .use(withContentMutation('topic:delete'))
+    .use(withScopedPermission('topic:delete'))
     .mutation(async ({ ctx }) => {
       return ctx.threadModel.deleteAll();
     }),
 
   removeThread: threadProcedure
-    .use(withContentMutation('topic:delete'))
+    .use(withScopedPermission('topic:delete'))
     .input(z.object({ id: z.string(), removeChildren: z.boolean().optional() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.threadModel.delete(input.id);
     }),
 
   updateThread: threadProcedure
-    .use(withContentMutation('topic:update'))
+    .use(withScopedPermission('topic:update'))
     .input(
       z.object({
         id: z.string(),

@@ -1383,6 +1383,8 @@ When I am ___, I need ___
   'workspace.general.delete.failed': 'Failed to delete workspace',
   'workspace.general.delete.hint':
     'Cancel any active subscription before deletion. Billing history is kept for audit.',
+  'workspace.general.delete.noPermissionHint':
+    'Only workspace owners can delete this workspace. Ask an owner if you need this changed.',
   'workspace.general.delete.notOwner': 'Only the workspace owner can delete this workspace.',
   'workspace.general.delete.title': 'Delete Workspace',
   'workspace.general.devReset.confirm.cancel': 'Cancel',

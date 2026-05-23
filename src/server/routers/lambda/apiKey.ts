@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { ApiKeyModel } from '@/database/models/apiKey';
 import { router } from '@/libs/trpc/lambda';
@@ -18,6 +19,7 @@ const apiKeyProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) =
 
 export const apiKeyRouter = router({
   createApiKey: apiKeyProcedure
+    .use(withScopedPermission('api_key:create'))
     .input(
       z.object({
         expiresAt: z.date().optional().nullable(),
@@ -28,11 +30,14 @@ export const apiKeyRouter = router({
       return await ctx.apiKeyModel.create(input);
     }),
 
-  deleteAllApiKeys: apiKeyProcedure.mutation(async ({ ctx }) => {
-    return ctx.apiKeyModel.deleteAll();
-  }),
+  deleteAllApiKeys: apiKeyProcedure
+    .use(withScopedPermission('api_key:delete'))
+    .mutation(async ({ ctx }) => {
+      return ctx.apiKeyModel.deleteAll();
+    }),
 
   deleteApiKey: apiKeyProcedure
+    .use(withScopedPermission('api_key:delete'))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.apiKeyModel.delete(input.id);
@@ -55,6 +60,7 @@ export const apiKeyRouter = router({
   }),
 
   updateApiKey: apiKeyProcedure
+    .use(withScopedPermission('api_key:update'))
     .input(
       z.object({
         id: z.string(),

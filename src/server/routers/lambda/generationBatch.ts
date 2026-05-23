@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { GenerationBatchModel } from '@/database/models/generationBatch';
 import { router } from '@/libs/trpc/lambda';
@@ -21,6 +22,7 @@ const generationBatchProcedure = wsCompatProcedure.use(serverDatabase).use(async
 
 export const generationBatchRouter = router({
   deleteGenerationBatch: generationBatchProcedure
+    .use(withScopedPermission('file:delete'))
     .input(z.object({ batchId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       // 1. Delete database records and get thumbnail URLs to clean

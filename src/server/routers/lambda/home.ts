@@ -1,6 +1,7 @@
 import { after } from 'next/server';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AgentModel } from '@/database/models/agent';
 import { AgentMigrationRepo } from '@/database/repositories/agentMigration';
@@ -53,6 +54,7 @@ export const homeRouter = router({
     }),
 
   updateAgentSessionGroupId: homeProcedure
+    .use(withScopedPermission('agent:update'))
     .input(
       z.object({
         agentId: z.string(),

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { businessFileUploadCheck } from '@/business/server/lambda-routers/file';
 import { checkFileStorageUsage } from '@/business/server/trpc-middlewares/lambda';
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { serverDBEnv } from '@/config/db';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
@@ -122,6 +123,7 @@ const fileProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) => 
 
 export const fileRouter = router({
   checkFileHash: fileProcedure
+    .use(withScopedPermission('file:upload'))
     .use(checkFileStorageUsage)
     .input(z.object({ hash: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -129,6 +131,7 @@ export const fileRouter = router({
     }),
 
   createFile: fileProcedure
+    .use(withScopedPermission('file:upload'))
     .use(checkFileStorageUsage)
     .input(
       UploadFileSchema.omit({ url: true }).extend({
@@ -380,6 +383,7 @@ export const fileRouter = router({
     }),
 
   deleteKnowledgeItemsByQuery: fileProcedure
+    .use(withScopedPermission('file:delete'))
     .input(QueryFileListSchema)
     .mutation(async ({ ctx, input }): Promise<{ count: number }> => {
       const fileIds: string[] = [];
@@ -506,33 +510,39 @@ export const fileRouter = router({
         .slice(0, limit);
     }),
 
-  removeAllFiles: fileProcedure.mutation(async ({ ctx }) => {
-    // Get all file IDs for this user
-    const allFiles = await ctx.fileModel.query({ showFilesInKnowledgeBase: true });
-    const fileIds = allFiles.map((f) => f.id);
+  removeAllFiles: fileProcedure
+    .use(withScopedPermission('file:delete'))
+    .mutation(async ({ ctx }) => {
+      // Get all file IDs for this user
+      const allFiles = await ctx.fileModel.query({ showFilesInKnowledgeBase: true });
+      const fileIds = allFiles.map((f) => f.id);
 
-    // Use deleteMany to properly handle shared files (globalFiles reference counting)
-    const needToRemoveFileList = await ctx.fileModel.deleteMany(
-      fileIds,
-      serverDBEnv.REMOVE_GLOBAL_FILE,
-    );
+      // Use deleteMany to properly handle shared files (globalFiles reference counting)
+      const needToRemoveFileList = await ctx.fileModel.deleteMany(
+        fileIds,
+        serverDBEnv.REMOVE_GLOBAL_FILE,
+      );
 
-    // Delete S3 files only if no other users reference them
-    if (needToRemoveFileList && needToRemoveFileList.length > 0) {
-      await ctx.fileService.deleteFiles(needToRemoveFileList.map((file) => file.url!));
-    }
-  }),
+      // Delete S3 files only if no other users reference them
+      if (needToRemoveFileList && needToRemoveFileList.length > 0) {
+        await ctx.fileService.deleteFiles(needToRemoveFileList.map((file) => file.url!));
+      }
+    }),
 
-  removeFile: fileProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
-    const file = await ctx.fileModel.delete(input.id, serverDBEnv.REMOVE_GLOBAL_FILE);
+  removeFile: fileProcedure
+    .use(withScopedPermission('file:delete'))
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const file = await ctx.fileModel.delete(input.id, serverDBEnv.REMOVE_GLOBAL_FILE);
 
-    if (!file) return;
+      if (!file) return;
 
-    // delete the file from S3 if it is not used by other files
-    await ctx.fileService.deleteFile(file.url!);
-  }),
+      // delete the file from S3 if it is not used by other files
+      await ctx.fileService.deleteFile(file.url!);
+    }),
 
   removeFileAsyncTask: fileProcedure
+    .use(withScopedPermission('file:update'))
     .input(
       z.object({
         id: z.string(),
@@ -552,6 +562,7 @@ export const fileRouter = router({
     }),
 
   removeFiles: fileProcedure
+    .use(withScopedPermission('file:delete'))
     .input(z.object({ ids: z.array(z.string()) }))
     .mutation(async ({ input, ctx }) => {
       const needToRemoveFileList = await ctx.fileModel.deleteMany(
@@ -566,6 +577,7 @@ export const fileRouter = router({
     }),
 
   updateFile: fileProcedure
+    .use(withScopedPermission('file:update'))
     .input(
       z.object({
         id: z.string(),

@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationModel } from '@/database/models/generation';
@@ -32,6 +33,7 @@ export type GetGenerationStatusResult = {
 
 export const generationRouter = router({
   deleteGeneration: generationProcedure
+    .use(withScopedPermission('file:delete'))
     .input(z.object({ generationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       // Delete the generation record from database and get the deleted data

@@ -3,6 +3,7 @@ import { RequestTrigger, SemanticSearchSchema } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { ChunkModel } from '@/database/models/chunk';
@@ -41,6 +42,7 @@ const chunkProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) =>
 
 export const chunkRouter = router({
   createEmbeddingChunksTask: chunkProcedure
+    .use(withScopedPermission('knowledge_base:update'))
     .input(
       z.object({
         id: z.string(),
@@ -53,6 +55,7 @@ export const chunkRouter = router({
     }),
 
   createParseFileTask: chunkProcedure
+    .use(withScopedPermission('knowledge_base:update'))
     .input(
       z.object({
         id: z.string(),
@@ -92,6 +95,7 @@ export const chunkRouter = router({
     }),
 
   retryParseFileTask: chunkProcedure
+    .use(withScopedPermission('knowledge_base:update'))
     .input(
       z.object({
         id: z.string(),

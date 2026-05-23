@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AiProviderModel } from '@/database/models/aiProvider';
 import { UserModel } from '@/database/models/user';
@@ -41,6 +42,7 @@ const aiProviderProcedure = wsCompatProcedure.use(serverDatabase).use(async (opt
 
 export const aiProviderRouter = router({
   checkProviderConnectivity: aiProviderProcedure
+    .use(withScopedPermission('ai_provider:update'))
     .input(
       z.object({
         id: z.string(),
@@ -88,6 +90,7 @@ export const aiProviderRouter = router({
     }),
 
   createAiProvider: aiProviderProcedure
+    .use(withScopedPermission('ai_provider:create'))
     .input(CreateAiProviderSchema)
     .mutation(async ({ input, ctx }) => {
       try {
@@ -123,12 +126,14 @@ export const aiProviderRouter = router({
     }),
 
   removeAiProvider: aiProviderProcedure
+    .use(withScopedPermission('ai_provider:delete'))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.aiProviderModel.delete(input.id);
     }),
 
   toggleProviderEnabled: aiProviderProcedure
+    .use(withScopedPermission('ai_provider:update'))
     .input(
       z.object({
         enabled: z.boolean(),
@@ -140,6 +145,7 @@ export const aiProviderRouter = router({
     }),
 
   updateAiProvider: aiProviderProcedure
+    .use(withScopedPermission('ai_provider:update'))
     .input(
       z.object({
         id: z.string(),
@@ -151,6 +157,7 @@ export const aiProviderRouter = router({
     }),
 
   updateAiProviderConfig: aiProviderProcedure
+    .use(withScopedPermission('ai_provider:update'))
     .input(
       z.object({
         id: z.string(),
@@ -167,6 +174,7 @@ export const aiProviderRouter = router({
     }),
 
   updateAiProviderOrder: aiProviderProcedure
+    .use(withScopedPermission('ai_provider:update'))
     .input(
       z.object({
         sortMap: z.array(

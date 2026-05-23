@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { FREE_DOCUMENT_HISTORY_WINDOW_DAYS } from '@/const/documentHistory';
 import { ChunkModel } from '@/database/models/chunk';
@@ -41,6 +42,7 @@ const documentProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts)
 
 export const documentRouter = router({
   createDocument: documentProcedure
+    .use(withScopedPermission('document:create'))
     .input(
       z.object({
         content: z.string().optional(),
@@ -73,6 +75,7 @@ export const documentRouter = router({
     }),
 
   createDocuments: documentProcedure
+    .use(withScopedPermission('document:create'))
     .input(
       z.object({
         documents: z.array(
@@ -117,12 +120,14 @@ export const documentRouter = router({
     }),
 
   deleteDocument: documentProcedure
+    .use(withScopedPermission('document:delete'))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.documentService.deleteDocument(input.id);
     }),
 
   deleteDocuments: documentProcedure
+    .use(withScopedPermission('document:delete'))
     .input(z.object({ ids: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {
       return ctx.documentService.deleteDocuments(input.ids);
@@ -165,6 +170,7 @@ export const documentRouter = router({
     }),
 
   saveDocumentHistory: documentProcedure
+    .use(withScopedPermission('document:update'))
     .input(saveDocumentHistoryInputSchema)
     .mutation(async ({ ctx, input }) => {
       const editorData = JSON.parse(input.editorData);
@@ -201,6 +207,7 @@ export const documentRouter = router({
     }),
 
   parseDocument: documentProcedure
+    .use(withScopedPermission('document:update'))
     .input(
       z.object({
         id: z.string(),
@@ -213,6 +220,7 @@ export const documentRouter = router({
     }),
 
   parseFileContent: documentProcedure
+    .use(withScopedPermission('document:update'))
     .input(
       z.object({
         id: z.string(),
@@ -241,6 +249,7 @@ export const documentRouter = router({
     }),
 
   updateDocument: documentProcedure
+    .use(withScopedPermission('document:update'))
     .input(updateDocumentInputSchema)
     .mutation(async ({ ctx, input }) => {
       const { id, editorData: editorDataString, ...params } = input;

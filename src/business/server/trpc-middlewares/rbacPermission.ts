@@ -20,9 +20,9 @@ export const withAllRbacPermissions = (_codes: string[]) =>
   trpc.middleware(async (opts) => opts.next());
 
 /**
- * Convenience for content-write mutations — in cloud this fans the action
- * code out into the `(:all | :owner)` pair so members editing their own
- * content pass alongside owners. OSS no-op.
+ * Sugar for the "member-or-owner" gate — in cloud this fans the action code
+ * out into the `:all | :owner` scope pair so a member with the `:owner` grant
+ * passes alongside an owner with the `:all` grant. OSS no-op.
  */
-export const withContentMutation = (_action: string) =>
+export const withScopedPermission = (_action: string) =>
   trpc.middleware(async (opts) => opts.next());

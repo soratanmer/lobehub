@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import debug from 'debug';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import {
   AgentEvalBenchmarkModel,
@@ -70,11 +71,16 @@ const agentEvalProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts
   });
 });
 
+// Write variant for mutations — gates viewers out of all eval-creation/edit
+// flows. Reads keep using `agentEvalProcedure` (viewers may inspect existing
+// benchmarks / runs).
+const agentEvalProcedureWrite = agentEvalProcedure.use(withScopedPermission('agent:update'));
+
 export const agentEvalRouter = router({
   // ============================================
   // Benchmark Operations
   // ============================================
-  createBenchmark: agentEvalProcedure
+  createBenchmark: agentEvalProcedureWrite
     .input(
       z.object({
         identifier: z.string(),
@@ -127,7 +133,7 @@ export const agentEvalRouter = router({
       return benchmark;
     }),
 
-  updateBenchmark: agentEvalProcedure
+  updateBenchmark: agentEvalProcedureWrite
     .input(
       z.object({
         id: z.string(),
@@ -150,7 +156,7 @@ export const agentEvalRouter = router({
       return result;
     }),
 
-  deleteBenchmark: agentEvalProcedure
+  deleteBenchmark: agentEvalProcedureWrite
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
@@ -174,7 +180,7 @@ export const agentEvalRouter = router({
   // ============================================
   // Dataset Operations
   // ============================================
-  createDataset: agentEvalProcedure
+  createDataset: agentEvalProcedureWrite
     .input(
       z.object({
         benchmarkId: z.string(),
@@ -234,7 +240,7 @@ export const agentEvalRouter = router({
       return dataset;
     }),
 
-  updateDataset: agentEvalProcedure
+  updateDataset: agentEvalProcedureWrite
     .input(
       z.object({
         id: z.string(),
@@ -257,7 +263,7 @@ export const agentEvalRouter = router({
       return result;
     }),
 
-  deleteDataset: agentEvalProcedure
+  deleteDataset: agentEvalProcedureWrite
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
@@ -278,7 +284,7 @@ export const agentEvalRouter = router({
       }
     }),
 
-  parseDatasetFile: agentEvalProcedure
+  parseDatasetFile: agentEvalProcedureWrite
     .input(
       z.object({
         pathname: z.string(),
@@ -316,7 +322,7 @@ export const agentEvalRouter = router({
       }
     }),
 
-  importDataset: agentEvalProcedure
+  importDataset: agentEvalProcedureWrite
     .input(
       z.object({
         datasetId: z.string(),
@@ -432,7 +438,7 @@ export const agentEvalRouter = router({
   // ============================================
   // TestCase Operations
   // ============================================
-  createTestCase: agentEvalProcedure
+  createTestCase: agentEvalProcedureWrite
     .input(
       z.object({
         datasetId: z.string(),
@@ -473,7 +479,7 @@ export const agentEvalRouter = router({
       }
     }),
 
-  batchCreateTestCases: agentEvalProcedure
+  batchCreateTestCases: agentEvalProcedureWrite
     .input(
       z.object({
         datasetId: z.string(),
@@ -514,7 +520,7 @@ export const agentEvalRouter = router({
       }
     }),
 
-  updateTestCase: agentEvalProcedure
+  updateTestCase: agentEvalProcedureWrite
     .input(
       z.object({
         id: z.string(),
@@ -543,7 +549,7 @@ export const agentEvalRouter = router({
       return result;
     }),
 
-  deleteTestCase: agentEvalProcedure
+  deleteTestCase: agentEvalProcedureWrite
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
@@ -593,7 +599,7 @@ export const agentEvalRouter = router({
   // ============================================
   // Run Operations
   // ============================================
-  createRun: agentEvalProcedure
+  createRun: agentEvalProcedureWrite
     .input(
       z.object({
         datasetId: z.string(),
@@ -680,7 +686,7 @@ export const agentEvalRouter = router({
       return result;
     }),
 
-  deleteRun: agentEvalProcedure
+  deleteRun: agentEvalProcedureWrite
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
@@ -709,7 +715,7 @@ export const agentEvalRouter = router({
    * Start executing a run
    * Transitions: idle/failed → pending → running
    */
-  startRun: agentEvalProcedure
+  startRun: agentEvalProcedureWrite
     .input(
       z.object({
         id: z.string(),
@@ -745,7 +751,7 @@ export const agentEvalRouter = router({
   /**
    * Abort a running evaluation
    */
-  abortRun: agentEvalProcedure
+  abortRun: agentEvalProcedureWrite
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const run = await ctx.runModel.findById(input.id);
@@ -770,7 +776,7 @@ export const agentEvalRouter = router({
       return { success: true };
     }),
 
-  retryRunErrors: agentEvalProcedure
+  retryRunErrors: agentEvalProcedureWrite
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const run = await ctx.runModel.findById(input.id);
@@ -794,7 +800,7 @@ export const agentEvalRouter = router({
       return { retryCount, runId: input.id, success: true };
     }),
 
-  retryRunCase: agentEvalProcedure
+  retryRunCase: agentEvalProcedureWrite
     .input(z.object({ runId: z.string(), testCaseId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const run = await ctx.runModel.findById(input.runId);
@@ -818,7 +824,7 @@ export const agentEvalRouter = router({
       return { runId: input.runId, success: true, testCaseId: input.testCaseId };
     }),
 
-  resumeRunCase: agentEvalProcedure
+  resumeRunCase: agentEvalProcedureWrite
     .input(z.object({ runId: z.string(), testCaseId: z.string(), threadId: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       log(
@@ -836,7 +842,7 @@ export const agentEvalRouter = router({
       return result;
     }),
 
-  batchResumeRunCases: agentEvalProcedure
+  batchResumeRunCases: agentEvalProcedureWrite
     .input(
       z.object({
         runId: z.string(),
@@ -932,7 +938,7 @@ export const agentEvalRouter = router({
   /**
    * Update run status (internal use)
    */
-  updateRunStatus: agentEvalProcedure
+  updateRunStatus: agentEvalProcedureWrite
     .input(
       z.object({
         id: z.string(),
@@ -962,7 +968,7 @@ export const agentEvalRouter = router({
   /**
    * Update run metrics (internal use)
    */
-  updateRunMetrics: agentEvalProcedure
+  updateRunMetrics: agentEvalProcedureWrite
     .input(
       z.object({
         id: z.string(),
@@ -992,7 +998,7 @@ export const agentEvalRouter = router({
   /**
    * Update run (user-facing: name, datasetId, targetAgentId)
    */
-  updateRun: agentEvalProcedure
+  updateRun: agentEvalProcedureWrite
     .input(
       z.object({
         config: evalRunInputConfigSchema.optional(),

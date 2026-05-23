@@ -3,6 +3,7 @@ import { fetchQrCode, pollQrStatus } from '@lobechat/chat-adapter-wechat';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AgentBotProviderModel } from '@/database/models/agentBotProvider';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
@@ -30,6 +31,12 @@ const agentBotProviderProcedure = wsCompatProcedure.use(serverDatabase).use(asyn
   });
 });
 
+// Write variant gates viewers out of bot-provider mutations
+// (create/update/delete + start/test connections). Reads keep the bare proc.
+const agentBotProviderProcedureWrite = agentBotProviderProcedure.use(
+  withScopedPermission('agent:update'),
+);
+
 /**
  * Wrap the shared access-policy validator so violations surface as
  * `TRPCError(BAD_REQUEST)` — keeps client forms able to highlight the
@@ -51,7 +58,7 @@ export const agentBotProviderRouter = router({
     return platformRegistry.listSerializedPlatforms();
   }),
 
-  create: agentBotProviderProcedure
+  create: agentBotProviderProcedureWrite
     .input(
       z.object({
         agentId: z.string(),
@@ -81,7 +88,7 @@ export const agentBotProviderRouter = router({
       }
     }),
 
-  delete: agentBotProviderProcedure
+  delete: agentBotProviderProcedureWrite
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       // Load record before delete to get platform + applicationId
@@ -157,7 +164,7 @@ export const agentBotProviderRouter = router({
       }));
     }),
 
-  connectBot: agentBotProviderProcedure
+  connectBot: agentBotProviderProcedureWrite
     .input(z.object({ applicationId: z.string(), platform: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const service = new GatewayService();
@@ -166,7 +173,7 @@ export const agentBotProviderRouter = router({
       return { status };
     }),
 
-  testConnection: agentBotProviderProcedure
+  testConnection: agentBotProviderProcedureWrite
     .input(z.object({ applicationId: z.string(), platform: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const { platform, applicationId } = input;
@@ -253,7 +260,7 @@ export const agentBotProviderRouter = router({
       return pollQrStatus(input.qrcode);
     }),
 
-  update: agentBotProviderProcedure
+  update: agentBotProviderProcedureWrite
     .input(
       z.object({
         applicationId: z.string().optional(),

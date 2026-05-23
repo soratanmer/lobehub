@@ -3,10 +3,8 @@ import { skillManifestSchema } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import {
-  requireWorkspaceRoleWhenScoped,
-  wsCompatProcedure,
-} from '@/business/server/trpc-middlewares/workspaceAuth';
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
+import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AgentSkillModel } from '@/database/models/agentSkill';
 import { FileModel } from '@/database/models/file';
 import { router } from '@/libs/trpc/lambda';
@@ -75,8 +73,13 @@ const skillProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) =>
   });
 });
 
-// Writes: in workspace mode require `owner` role; personal mode unrestricted.
-const skillWriteProcedure = skillProcedure.use(requireWorkspaceRoleWhenScoped('owner'));
+// Writes: workspace mode goes through RBAC (`agent:update:all | :owner`),
+// gating viewers out while letting members and owners install/edit skills.
+// Personal mode is unrestricted (middleware passes through when no
+// workspaceId). Replaces the legacy `requireWorkspaceRoleWhenScoped('owner')`
+// which was overly restrictive (member should be able to manage skills they
+// own, per the role-permission matrix in @lobechat/const/rbac).
+const skillWriteProcedure = skillProcedure.use(withScopedPermission('agent:update'));
 
 const skillResourceProcedure = skillProcedure.use(async (opts) => {
   const { ctx } = opts;

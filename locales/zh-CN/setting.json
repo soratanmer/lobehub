@@ -1387,6 +1387,7 @@
   "workspace.general.delete.description": "永久删除此工作区及其全部数据 —— 助理、会话、消息、文件、成员与邀请。此操作无法撤销。",
   "workspace.general.delete.failed": "删除工作区失败",
   "workspace.general.delete.hint": "删除前请先取消此工作区的有效订阅。账单流水保留用于审计。",
+  "workspace.general.delete.noPermissionHint": "只有工作区所有者可以删除工作区。如需变更,请联系所有者。",
   "workspace.general.delete.notOwner": "只有工作区所有者可以删除此工作区。",
   "workspace.general.delete.title": "删除工作区",
   "workspace.general.devReset.confirm.cancel": "取消",

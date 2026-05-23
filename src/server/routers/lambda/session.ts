@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { withContentMutation } from '@/business/server/trpc-middlewares/rbacPermission';
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { ChatGroupModel } from '@/database/models/chatGroup';
 import { SessionModel } from '@/database/models/session';
@@ -35,7 +35,7 @@ const sessionProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) 
 export const sessionRouter = router({
   /** @deprecated Use agent.createAgent instead */
   batchCreateSessions: sessionProcedure
-    .use(withContentMutation('session:create'))
+    .use(withScopedPermission('session:create'))
     .input(
       z.array(
         z
@@ -62,7 +62,7 @@ export const sessionRouter = router({
     }),
 
   cloneSession: sessionProcedure
-    .use(withContentMutation('session:create'))
+    .use(withScopedPermission('session:create'))
     .input(z.object({ id: z.string(), newTitle: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const data = await ctx.sessionModel.duplicate(input.id, input.newTitle);
@@ -86,7 +86,7 @@ export const sessionRouter = router({
 
   /** @deprecated Use agent.createAgent instead */
   createSession: sessionProcedure
-    .use(withContentMutation('session:create'))
+    .use(withScopedPermission('session:create'))
     .input(
       z.object({
         config: insertAgentSchema
@@ -162,13 +162,13 @@ export const sessionRouter = router({
 
   // Owner-only — bulk wipes everyone's sessions in the workspace.
   removeAllSessions: sessionProcedure
-    .use(withContentMutation('session:delete'))
+    .use(withScopedPermission('session:delete'))
     .mutation(async ({ ctx }) => {
       return ctx.sessionModel.deleteAll();
     }),
 
   removeSession: sessionProcedure
-    .use(withContentMutation('session:delete'))
+    .use(withScopedPermission('session:delete'))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.sessionModel.delete(input.id);
@@ -181,7 +181,7 @@ export const sessionRouter = router({
     }),
 
   updateSession: sessionProcedure
-    .use(withContentMutation('session:update'))
+    .use(withScopedPermission('session:update'))
     .input(
       z.object({
         id: z.string(),
@@ -192,7 +192,7 @@ export const sessionRouter = router({
       return ctx.sessionModel.update(input.id, input.value);
     }),
   updateSessionChatConfig: sessionProcedure
-    .use(withContentMutation('session:update'))
+    .use(withScopedPermission('session:update'))
     .input(
       z.object({
         id: z.string(),
@@ -205,7 +205,7 @@ export const sessionRouter = router({
       });
     }),
   updateSessionConfig: sessionProcedure
-    .use(withContentMutation('session:update'))
+    .use(withScopedPermission('session:update'))
     .input(
       z.object({
         id: z.string(),

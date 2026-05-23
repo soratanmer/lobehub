@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { GenerationTopicModel } from '@/database/models/generationTopic';
 import { type GenerationTopicItem } from '@/database/schemas/generation';
@@ -37,12 +38,14 @@ const updateTopicCoverSchema = z.object({
 
 export const generationTopicRouter = router({
   createTopic: generationTopicProcedure
+    .use(withScopedPermission('topic:create'))
     .input(z.object({ type: z.enum(['image', 'video']).optional() }).optional())
     .mutation(async ({ ctx, input }) => {
       const data = await ctx.generationTopicModel.create('', input?.type);
       return data.id;
     }),
   deleteTopic: generationTopicProcedure
+    .use(withScopedPermission('topic:delete'))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       // 1. Delete database records and get file URLs to clean
@@ -76,11 +79,13 @@ export const generationTopicRouter = router({
       return ctx.generationTopicModel.queryAll(input?.type);
     }),
   updateTopic: generationTopicProcedure
+    .use(withScopedPermission('topic:update'))
     .input(updateTopicSchema)
     .mutation(async ({ ctx, input }) => {
       return ctx.generationTopicModel.update(input.id, input.value as Partial<GenerationTopicItem>);
     }),
   updateTopicCover: generationTopicProcedure
+    .use(withScopedPermission('topic:update'))
     .input(updateTopicCoverSchema)
     .mutation(async ({ ctx, input }) => {
       // Process the cover image and get key
