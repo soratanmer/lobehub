@@ -10,7 +10,6 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 
 import { ProductLogo } from '@/components/Branding';
-import { useFinishOnboardingRedirect } from '@/features/Onboarding/Common/useFinishOnboardingRedirect';
 import LangButton from '@/features/User/UserPanel/LangButton';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
@@ -39,12 +38,10 @@ const OnBoardingContainer: FC<PropsWithChildren> = ({ children }) => {
     !!enableAgentOnboarding &&
     isBranchOnboarding;
 
-  const finishRedirect = useFinishOnboardingRedirect();
-
   const handleConfirmSkip = useCallback(() => {
     finishOnboarding();
-    finishRedirect();
-  }, [finishOnboarding, finishRedirect]);
+    navigate('/');
+  }, [finishOnboarding, navigate]);
 
   const switchMode = useCallback(
     (e: MouseEvent) => {

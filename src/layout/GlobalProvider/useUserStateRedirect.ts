@@ -51,13 +51,6 @@ export const shouldDeferOnboardingRedirect = (pathname: string): boolean => {
   return !!first && !RESERVED_FIRST_SEGMENTS.has(first);
 };
 
-export const buildOnboardingRedirectUrl = (pathname: string, search: string): string => {
-  const shouldPreserve =
-    pathname !== '/' && !SKIP_PRESERVE_PREFIXES.some((p) => pathname.startsWith(p));
-  if (!shouldPreserve) return '/onboarding';
-  return `/onboarding?callbackUrl=${encodeURIComponent(`${pathname}${search}`)}`;
-};
-
 export const useDesktopUserStateRedirect = () => {
   // Desktop onboarding redirect is now handled by main process (BrowserManager)
   // No need to check localStorage here
@@ -66,13 +59,13 @@ export const useDesktopUserStateRedirect = () => {
 
 export const useWebUserStateRedirect = () =>
   useCallback((state: UserInitializationState) => {
-    const { pathname, search } = window.location;
+    const { pathname } = window.location;
 
     if (!onboardingSelectors.needsOnboarding(state)) return;
     if (shouldDeferOnboardingRedirect(pathname)) return;
     if (pathname.startsWith('/onboarding')) return;
 
-    window.location.href = buildOnboardingRedirectUrl(pathname, search);
+    window.location.href = '/onboarding';
   }, []);
 
 export const useUserStateRedirect = () => {
