@@ -13,6 +13,7 @@ import { and, eq } from 'drizzle-orm';
 import pMap from 'p-map';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { MessageModel } from '@/database/models/message';
 import { TaskModel } from '@/database/models/task';
 import { ThreadModel } from '@/database/models/thread';
@@ -423,6 +424,7 @@ const aiAgentProcedure = authedProcedure.use(serverDatabase).use(async (opts) =>
 // and carries no workspace claim). Handlers must resolve wsId from the row keyed
 // by `topicId` and construct `HeterogeneousAgentService` per request.
 const heteroAgentProcedure = heteroAuthedProcedure.use(serverDatabase);
+const aiAgentWriteProcedure = aiAgentProcedure.use(withScopedPermission('message:create'));
 
 export const aiAgentRouter = router({
   /**
@@ -433,7 +435,7 @@ export const aiAgentRouter = router({
    * - The subAgentId is the worker agent that executes the task
    * - Thread messages query should not filter by agentId to include all parent messages
    */
-  createClientGroupAgentTaskThread: aiAgentProcedure
+  createClientGroupAgentTaskThread: aiAgentWriteProcedure
     .input(CreateClientGroupAgentTaskThreadSchema)
     .mutation(async ({ input, ctx }) => {
       const { groupId, instruction, parentMessageId, subAgentId, title, topicId } = input;
@@ -525,7 +527,7 @@ export const aiAgentRouter = router({
    * This endpoint is called by desktop client when runInClient=true.
    * It creates the Thread but does NOT execute the task - execution happens on client side.
    */
-  createClientTaskThread: aiAgentProcedure
+  createClientTaskThread: aiAgentWriteProcedure
     .input(CreateClientTaskThreadSchema)
     .mutation(async ({ input, ctx }) => {
       const { agentId, groupId, instruction, parentMessageId, title, topicId } = input;
@@ -607,7 +609,7 @@ export const aiAgentRouter = router({
       }
     }),
 
-  execAgent: aiAgentProcedure.input(ExecAgentSchema).mutation(async ({ input, ctx }) => {
+  execAgent: aiAgentWriteProcedure.input(ExecAgentSchema).mutation(async ({ input, ctx }) => {
     const {
       agentId,
       slug,
@@ -664,7 +666,7 @@ export const aiAgentRouter = router({
    * Batch execute multiple agents
    * Supports parallel or sequential execution
    */
-  execAgents: aiAgentProcedure.input(ExecAgentsSchema).mutation(async ({ input, ctx }) => {
+  execAgents: aiAgentWriteProcedure.input(ExecAgentsSchema).mutation(async ({ input, ctx }) => {
     const { tasks, parallel = true } = input;
 
     log('execAgents: %d tasks, parallel=%s', tasks.length, parallel);
@@ -756,48 +758,50 @@ export const aiAgentRouter = router({
    * 4. Trigger Supervisor Agent execution
    * 5. Return operationId for SSE connection + messages for UI sync
    */
-  execGroupAgent: aiAgentProcedure.input(ExecGroupAgentSchema).mutation(async ({ input, ctx }) => {
-    const { agentId, groupId, message, files, topicId, newTopic } = input;
+  execGroupAgent: aiAgentWriteProcedure
+    .input(ExecGroupAgentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { agentId, groupId, message, files, topicId, newTopic } = input;
 
-    log('execGroupAgent: agentId=%s, groupId=%s', agentId, groupId);
+      log('execGroupAgent: agentId=%s, groupId=%s', agentId, groupId);
 
-    try {
-      // Execute group agent
-      const result = await ctx.aiAgentService.execGroupAgent({
-        agentId,
-        files,
-        groupId,
-        message,
-        newTopic,
-        topicId,
-      });
+      try {
+        // Execute group agent
+        const result = await ctx.aiAgentService.execGroupAgent({
+          agentId,
+          files,
+          groupId,
+          message,
+          newTopic,
+          topicId,
+        });
 
-      // Get messages and topics for UI sync
-      // Messages include the assistant message with error if operation failed to start
-      const { messages, topics } = await ctx.aiChatService.getMessagesAndTopics({
-        agentId,
-        groupId,
-        includeTopic: result.isCreateNewTopic,
-        topicId: result.topicId,
-      });
+        // Get messages and topics for UI sync
+        // Messages include the assistant message with error if operation failed to start
+        const { messages, topics } = await ctx.aiChatService.getMessagesAndTopics({
+          agentId,
+          groupId,
+          includeTopic: result.isCreateNewTopic,
+          topicId: result.topicId,
+        });
 
-      // Return result with messages/topics - includes error/success fields
-      // Frontend can check success to decide whether to connect to SSE stream
-      return { ...result, messages, topics };
-    } catch (error: any) {
-      log('execGroupAgent failed: %O', error);
+        // Return result with messages/topics - includes error/success fields
+        // Frontend can check success to decide whether to connect to SSE stream
+        return { ...result, messages, topics };
+      } catch (error: any) {
+        log('execGroupAgent failed: %O', error);
 
-      if (error instanceof TRPCError) {
-        throw error;
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          cause: error,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to execute group agent: ${error.message}`,
+        });
       }
-
-      throw new TRPCError({
-        cause: error,
-        code: 'INTERNAL_SERVER_ERROR',
-        message: `Failed to execute group agent: ${error.message}`,
-      });
-    }
-  }),
+    }),
 
   /**
    * Execute SubAgent task (supports both Group and Single Agent mode)
@@ -808,7 +812,7 @@ export const aiAgentRouter = router({
    * - Group mode: pass groupId, Thread will be associated with the Group
    * - Single Agent mode: omit groupId, Thread will only be associated with the Agent
    */
-  execSubAgentTask: aiAgentProcedure
+  execSubAgentTask: aiAgentWriteProcedure
     .input(ExecSubAgentTaskSchema)
     .mutation(async ({ input, ctx }) => {
       const { agentId, groupId, instruction, parentMessageId, title, topicId, timeout } = input;
@@ -1132,23 +1136,25 @@ export const aiAgentRouter = router({
    * This endpoint interrupts a SubAgent task by threadId or operationId.
    * It updates both operation status and Thread status to cancelled state.
    */
-  interruptTask: aiAgentProcedure.input(InterruptTaskSchema).mutation(async ({ input, ctx }) => {
-    const { threadId, operationId } = input;
+  interruptTask: aiAgentWriteProcedure
+    .input(InterruptTaskSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { threadId, operationId } = input;
 
-    log('interruptTask: threadId=%s, operationId=%s', threadId, operationId);
+      log('interruptTask: threadId=%s, operationId=%s', threadId, operationId);
 
-    try {
-      return await ctx.aiAgentService.interruptTask({ operationId, threadId });
-    } catch (error: any) {
-      if (error.message === 'Thread not found') {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Thread not found' });
+      try {
+        return await ctx.aiAgentService.interruptTask({ operationId, threadId });
+      } catch (error: any) {
+        if (error.message === 'Thread not found') {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Thread not found' });
+        }
+        if (error.message === 'Operation ID not found') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Operation ID not found' });
+        }
+        throw error;
       }
-      if (error.message === 'Operation ID not found') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Operation ID not found' });
-      }
-      throw error;
-    }
-  }),
+    }),
 
   /**
    * Ingest a batch of `AgentStreamEvent`s from a `lh hetero exec` producer
@@ -1292,7 +1298,7 @@ export const aiAgentRouter = router({
     }
   }),
 
-  processHumanIntervention: aiAgentProcedure
+  processHumanIntervention: aiAgentWriteProcedure
     .input(ProcessHumanInterventionSchema)
     .mutation(async ({ input, ctx }) => {
       const { operationId, action, data, reason, stepIndex, toolMessageId } = input;
@@ -1363,25 +1369,27 @@ export const aiAgentRouter = router({
       };
     }),
 
-  startExecution: aiAgentProcedure.input(StartExecutionSchema).mutation(async ({ input, ctx }) => {
-    const { operationId, context, priority, delay } = input;
+  startExecution: aiAgentWriteProcedure
+    .input(StartExecutionSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { operationId, context, priority, delay } = input;
 
-    log('Starting execution for operation %s', operationId);
+      log('Starting execution for operation %s', operationId);
 
-    // Start execution using AgentRuntimeService
-    const result = await ctx.agentRuntimeService.startExecution({
-      context,
-      delay,
-      operationId,
-      priority,
-    });
+      // Start execution using AgentRuntimeService
+      const result = await ctx.agentRuntimeService.startExecution({
+        context,
+        delay,
+        operationId,
+        priority,
+      });
 
-    return {
-      ...result,
-      message: 'Agent execution started successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }),
+      return {
+        ...result,
+        message: 'Agent execution started successfully',
+        timestamp: new Date().toISOString(),
+      };
+    }),
 
   /**
    * Update Thread status after client-side task execution completes
@@ -1389,7 +1397,7 @@ export const aiAgentRouter = router({
    * This endpoint is called by desktop client after task execution finishes.
    * It updates the Thread status and metadata similar to server-side completion.
    */
-  updateClientTaskThreadStatus: aiAgentProcedure
+  updateClientTaskThreadStatus: aiAgentWriteProcedure
     .input(UpdateClientTaskThreadStatusSchema)
     .mutation(async ({ input, ctx }) => {
       const { threadId, completionReason, error, resultContent, metadata } = input;

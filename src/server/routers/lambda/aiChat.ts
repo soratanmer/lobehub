@@ -2,6 +2,7 @@ import { type CreateMessageParams, type SendMessageServerResponse } from '@lobec
 import { AiSendMessageServerSchema, RequestTrigger, StructureOutputSchema } from '@lobechat/types';
 import debug from 'debug';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { LOADING_FLAT } from '@/const/message';
 import { AgentModel } from '@/database/models/agent';
 import { MessageModel } from '@/database/models/message';
@@ -32,8 +33,10 @@ const aiChatProcedure = authedProcedure.use(serverDatabase).use(async (opts) => 
   });
 });
 
+const aiChatWriteProcedure = aiChatProcedure.use(withScopedPermission('message:create'));
+
 export const aiChatRouter = router({
-  outputJSON: aiChatProcedure.input(StructureOutputSchema).mutation(async ({ input, ctx }) => {
+  outputJSON: aiChatWriteProcedure.input(StructureOutputSchema).mutation(async ({ input, ctx }) => {
     log('outputJSON called with provider: %s, model: %s', input.provider, input.model);
     log('messages count: %d', input.messages.length);
     log('schema: %O', input.schema);
@@ -57,7 +60,7 @@ export const aiChatRouter = router({
     return result;
   }),
 
-  sendMessageInServer: aiChatProcedure
+  sendMessageInServer: aiChatWriteProcedure
     .input(AiSendMessageServerSchema)
     .mutation(async ({ input, ctx }) => {
       log('sendMessageInServer called for agentId: %s', input.agentId);

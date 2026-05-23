@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { BriefModel } from '@/database/models/brief';
 import { TaskModel } from '@/database/models/task';
@@ -11,6 +12,7 @@ import { NIGHTLY_REVIEW_BRIEF_TRIGGER } from '@/server/services/agentSignal/serv
 import { BriefService } from '@/server/services/brief';
 
 const briefProcedure = wsCompatProcedure.use(serverDatabase);
+const briefWriteProcedure = briefProcedure.use(withScopedPermission('task:update'));
 
 const idInput = z.object({ id: z.string() });
 
@@ -34,7 +36,7 @@ const listSchema = z.object({
 });
 
 export const briefRouter = router({
-  create: briefProcedure.input(createSchema).mutation(async ({ input, ctx }) => {
+  create: briefWriteProcedure.input(createSchema).mutation(async ({ input, ctx }) => {
     try {
       const { artifacts, ...rest } = input;
       // Legacy clients pass artifacts as a flat doc-id list; the storage shape
@@ -66,7 +68,7 @@ export const briefRouter = router({
     }
   }),
 
-  delete: briefProcedure.input(idInput).mutation(async ({ input, ctx }) => {
+  delete: briefWriteProcedure.input(idInput).mutation(async ({ input, ctx }) => {
     try {
       const model = new BriefModel(ctx.serverDB, ctx.userId, ctx.workspaceId ?? undefined);
       const deleted = await model.delete(input.id);
@@ -148,7 +150,7 @@ export const briefRouter = router({
     }
   }),
 
-  markRead: briefProcedure.input(idInput).mutation(async ({ input, ctx }) => {
+  markRead: briefWriteProcedure.input(idInput).mutation(async ({ input, ctx }) => {
     try {
       const model = new BriefModel(ctx.serverDB, ctx.userId, ctx.workspaceId ?? undefined);
       const brief = await model.markRead(input.id);
@@ -165,7 +167,7 @@ export const briefRouter = router({
     }
   }),
 
-  resolve: briefProcedure
+  resolve: briefWriteProcedure
     .input(
       idInput.merge(
         z.object({

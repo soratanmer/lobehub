@@ -5,6 +5,7 @@ import {
 import debug from 'debug';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { enqueueAgentSignalSourceEvent } from '@/server/services/agentSignal';
 import { listAgentSignalReceipts } from '@/server/services/agentSignal/services/receiptService';
@@ -12,13 +13,14 @@ import { listAgentSignalReceipts } from '@/server/services/agentSignal/services/
 const log = debug('lobe-server:agent-signal:router');
 
 const agentSignalProcedure = authedProcedure;
+const agentSignalWriteProcedure = agentSignalProcedure.use(withScopedPermission('message:create'));
 const clientSourceTypes = AGENT_SIGNAL_CLIENT_SOURCE_TYPES;
 
 type ClientSourceType = (typeof clientSourceTypes)[number];
 type ClientSourceEventInput = AgentSignalSourceEventInput<ClientSourceType>;
 
 export const agentSignalRouter = router({
-  emitSourceEvent: agentSignalProcedure
+  emitSourceEvent: agentSignalWriteProcedure
     .input(
       z.object({
         payload: z.record(z.string(), z.unknown()),
@@ -42,6 +44,7 @@ export const agentSignalRouter = router({
       return enqueueAgentSignalSourceEvent(input as unknown as ClientSourceEventInput, {
         agentId: typeof input.payload.agentId === 'string' ? input.payload.agentId : undefined,
         userId: ctx.userId,
+        workspaceId: ctx.workspaceId ?? undefined,
       });
     }),
   listReceipts: agentSignalProcedure

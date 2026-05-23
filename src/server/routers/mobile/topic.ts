@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { TopicModel } from '@/database/models/topic';
 import { getServerDB } from '@/database/server';
@@ -17,8 +18,12 @@ const topicProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) =>
   });
 });
 
+const topicCreateProcedure = topicProcedure.use(withScopedPermission('topic:create'));
+const topicDeleteProcedure = topicProcedure.use(withScopedPermission('topic:delete'));
+const topicUpdateProcedure = topicProcedure.use(withScopedPermission('topic:update'));
+
 export const topicRouter = router({
-  batchCreateTopics: topicProcedure
+  batchCreateTopics: topicCreateProcedure
     .input(
       z.array(
         z.object({
@@ -40,19 +45,19 @@ export const topicRouter = router({
       return { added: data.length, ids: [], skips: [], success: true };
     }),
 
-  batchDelete: topicProcedure
+  batchDelete: topicDeleteProcedure
     .input(z.object({ ids: z.array(z.string()) }))
     .mutation(async ({ input, ctx }) => {
       return ctx.topicModel.batchDelete(input.ids);
     }),
 
-  batchDeleteBySessionId: topicProcedure
+  batchDeleteBySessionId: topicDeleteProcedure
     .input(z.object({ id: z.string().nullable().optional() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.topicModel.batchDeleteBySessionId(input.id);
     }),
 
-  cloneTopic: topicProcedure
+  cloneTopic: topicCreateProcedure
     .input(z.object({ id: z.string(), newTitle: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       const data = await ctx.topicModel.duplicate(input.id, input.newTitle);
@@ -74,7 +79,7 @@ export const topicRouter = router({
       return ctx.topicModel.count(input);
     }),
 
-  createTopic: topicProcedure
+  createTopic: topicCreateProcedure
     .input(
       z.object({
         favorite: z.boolean().optional(),
@@ -120,11 +125,11 @@ export const topicRouter = router({
     return ctx.topicModel.rank(input);
   }),
 
-  removeAllTopics: topicProcedure.mutation(async ({ ctx }) => {
+  removeAllTopics: topicDeleteProcedure.mutation(async ({ ctx }) => {
     return ctx.topicModel.deleteAll();
   }),
 
-  removeTopic: topicProcedure
+  removeTopic: topicDeleteProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.topicModel.delete(input.id);
@@ -142,7 +147,7 @@ export const topicRouter = router({
       return ctx.topicModel.queryByKeyword(input.keywords, input.sessionId);
     }),
 
-  updateTopic: topicProcedure
+  updateTopic: topicUpdateProcedure
     .input(
       z.object({
         id: z.string(),
