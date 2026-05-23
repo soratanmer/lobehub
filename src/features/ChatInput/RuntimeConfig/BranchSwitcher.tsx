@@ -167,6 +167,7 @@ const styles = createStaticStyles(({ css }) => ({
 interface BranchSwitcherProps {
   children: ReactElement;
   currentBranch?: string;
+  disabled?: boolean;
   onAfterCheckout?: () => void;
   onExternalRefresh?: () => void | Promise<void>;
   onOpenChange: (open: boolean) => void;
@@ -175,7 +176,16 @@ interface BranchSwitcherProps {
 }
 
 const BranchSwitcher = memo<BranchSwitcherProps>(
-  ({ path, currentBranch, open, onOpenChange, onAfterCheckout, onExternalRefresh, children }) => {
+  ({
+    path,
+    currentBranch,
+    disabled,
+    open,
+    onOpenChange,
+    onAfterCheckout,
+    onExternalRefresh,
+    children,
+  }) => {
     const { t } = useTranslation('plugin');
     const [search, setSearch] = useState('');
     const [isCreating, setIsCreating] = useState(false);
@@ -232,6 +242,7 @@ const BranchSwitcher = memo<BranchSwitcherProps>(
 
     const handleCheckout = useCallback(
       async (branch: string, create = false) => {
+        if (disabled) return;
         if (busyBranch) return;
         if (!create && branch === currentBranch) {
           onOpenChange(false);
@@ -254,14 +265,14 @@ const BranchSwitcher = memo<BranchSwitcherProps>(
           setBusyBranch(null);
         }
       },
-      [busyBranch, currentBranch, onAfterCheckout, onOpenChange, path, t],
+      [busyBranch, currentBranch, disabled, onAfterCheckout, onOpenChange, path, t],
     );
 
     const handleCreateSubmit = useCallback(() => {
       const name = newBranch.trim();
-      if (!name) return;
+      if (disabled || !name) return;
       void handleCheckout(name, true);
-    }, [handleCheckout, newBranch]);
+    }, [disabled, handleCheckout, newBranch]);
 
     return (
       <DropdownMenuRoot open={open} onOpenChange={onOpenChange}>
@@ -325,6 +336,7 @@ const BranchSwitcher = memo<BranchSwitcherProps>(
                       <DropdownMenuItem
                         className={styles.item}
                         closeOnClick={false}
+                        disabled={disabled}
                         key={branch.name}
                         onClick={() => handleCheckout(branch.name)}
                       >
@@ -365,7 +377,7 @@ const BranchSwitcher = memo<BranchSwitcherProps>(
                       onPressEnter={handleCreateSubmit}
                     />
                     <Button
-                      disabled={!newBranch.trim() || !!busyBranch}
+                      disabled={disabled || !newBranch.trim() || !!busyBranch}
                       loading={!!busyBranch}
                       size="small"
                       type="primary"
@@ -389,7 +401,11 @@ const BranchSwitcher = memo<BranchSwitcherProps>(
                     <DropdownMenuItem
                       className={cx(styles.item, styles.createItem)}
                       closeOnClick={false}
-                      onClick={() => setIsCreating(true)}
+                      disabled={disabled}
+                      onClick={() => {
+                        if (disabled) return;
+                        setIsCreating(true);
+                      }}
                     >
                       <Icon className={styles.itemIcon} icon={GitBranchPlusIcon} size={14} />
                       <div className={styles.itemMain}>

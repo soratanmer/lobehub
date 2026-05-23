@@ -7,6 +7,7 @@ import { CheckIcon, FolderIcon, FolderOpenIcon, GitBranchIcon, XIcon } from 'luc
 import { memo, type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { usePermission } from '@/hooks/usePermission';
 import { electronSystemService } from '@/services/electron/system';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors } from '@/store/agent/selectors';
@@ -124,6 +125,7 @@ interface WorkingDirectoryContentProps {
 
 const WorkingDirectoryContent = memo<WorkingDirectoryContentProps>(({ agentId, onClose }) => {
   const { t } = useTranslation(['plugin', 'chat']);
+  const { allowed: canCreate } = usePermission('create_content');
 
   const agentWorkingDirectory = useAgentStore((s) =>
     agentByIdSelectors.getAgentWorkingDirectoryById(agentId)(s),
@@ -150,6 +152,7 @@ const WorkingDirectoryContent = memo<WorkingDirectoryContentProps>(({ agentId, o
 
   const selectDir = useCallback(
     async (entry: RecentDirEntry) => {
+      if (!canCreate) return;
       const newPath = entry.path;
       // Scope of the write: once a topic is active, changing cwd updates the
       // topic's own binding (each topic is a CC session pinned to a dir).
@@ -189,6 +192,7 @@ const WorkingDirectoryContent = memo<WorkingDirectoryContentProps>(({ agentId, o
       activeTopicId,
       activeTopic,
       agentId,
+      canCreate,
       t,
       updateAgentRuntimeEnvConfig,
       updateTopicMetadata,
@@ -197,6 +201,7 @@ const WorkingDirectoryContent = memo<WorkingDirectoryContentProps>(({ agentId, o
   );
 
   const handleChooseFolder = useCallback(async () => {
+    if (!canCreate) return;
     if (!isDesktop) return;
     const result = await electronSystemService.selectFolder({
       defaultPath: effectiveDir || undefined,
@@ -205,7 +210,7 @@ const WorkingDirectoryContent = memo<WorkingDirectoryContentProps>(({ agentId, o
     if (result) {
       await selectDir({ path: result.path, repoType: result.repoType });
     }
-  }, [effectiveDir, t, selectDir]);
+  }, [canCreate, effectiveDir, t, selectDir]);
 
   const handleRemoveRecent = useCallback((e: React.MouseEvent, path: string) => {
     e.stopPropagation();
@@ -236,6 +241,10 @@ const WorkingDirectoryContent = memo<WorkingDirectoryContentProps>(({ agentId, o
                 className={`${styles.dirItem} ${isActive ? styles.dirItemActive : ''}`}
                 gap={8}
                 key={entry.path}
+                style={{
+                  cursor: canCreate ? undefined : 'not-allowed',
+                  opacity: canCreate ? undefined : 0.5,
+                }}
                 onClick={() => selectDir(entry)}
               >
                 <RecentDirIcon entry={entry} />
@@ -270,6 +279,10 @@ const WorkingDirectoryContent = memo<WorkingDirectoryContentProps>(({ agentId, o
           align={'center'}
           className={styles.chooseFolderItem}
           gap={8}
+          style={{
+            cursor: canCreate ? undefined : 'not-allowed',
+            opacity: canCreate ? undefined : 0.5,
+          }}
           onClick={handleChooseFolder}
         >
           <Icon icon={FolderOpenIcon} size={14} />

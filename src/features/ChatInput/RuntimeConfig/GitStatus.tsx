@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { message } from '@/components/AntdStaticMethods';
 import RingLoadingIcon from '@/components/RingLoading';
+import { usePermission } from '@/hooks/usePermission';
 import { electronGitService } from '@/services/electron/git';
 import { electronSystemService } from '@/services/electron/system';
 import { useGlobalStore } from '@/store/global';
@@ -142,6 +143,7 @@ interface GitStatusProps {
 
 const GitStatus = memo<GitStatusProps>(({ path, isGithub }) => {
   const { t } = useTranslation('plugin');
+  const { allowed: canCreate } = usePermission('create_content');
   const { data, mutate } = useGitInfo(path, isGithub);
   const { data: workingStatus, mutate: mutateWorkingStatus } = useWorkingTreeStatus(path);
   const { data: aheadBehind, mutate: mutateAheadBehind } = useGitAheadBehind(path);
@@ -175,7 +177,7 @@ const GitStatus = memo<GitStatusProps>(({ path, isGithub }) => {
   const syncBusy = pulling || pushing;
 
   const handlePull = useCallback(async () => {
-    if (pulling || pushing) return;
+    if (!canCreate || pulling || pushing) return;
     setPulling(true);
     try {
       const result = await electronGitService.pullGitBranch({ path });
@@ -192,10 +194,10 @@ const GitStatus = memo<GitStatusProps>(({ path, isGithub }) => {
     } finally {
       setPulling(false);
     }
-  }, [path, pulling, pushing, refreshAfterSync, t]);
+  }, [canCreate, path, pulling, pushing, refreshAfterSync, t]);
 
   const handlePush = useCallback(async () => {
-    if (pulling || pushing) return;
+    if (!canCreate || pulling || pushing) return;
     setPushing(true);
     try {
       const result = await electronGitService.pushGitBranch({ path });
@@ -212,7 +214,7 @@ const GitStatus = memo<GitStatusProps>(({ path, isGithub }) => {
     } finally {
       setPushing(false);
     }
-  }, [path, pulling, pushing, refreshAfterSync, t]);
+  }, [canCreate, path, pulling, pushing, refreshAfterSync, t]);
 
   if (!data?.branch) return null;
 
@@ -259,6 +261,7 @@ const GitStatus = memo<GitStatusProps>(({ path, isGithub }) => {
   ) : (
     <BranchSwitcher
       currentBranch={data.branch}
+      disabled={!canCreate}
       open={switcherOpen}
       path={path}
       onExternalRefresh={refreshAfterSync}
@@ -296,10 +299,10 @@ const GitStatus = memo<GitStatusProps>(({ path, isGithub }) => {
     <Tooltip title={pullTooltip}>
       <div
         aria-busy={pulling}
-        aria-disabled={syncBusy}
-        className={`${styles.syncTrigger} ${styles.behindStat} ${syncBusy ? styles.syncTriggerDisabled : ''}`}
+        aria-disabled={syncBusy || !canCreate}
+        className={`${styles.syncTrigger} ${styles.behindStat} ${syncBusy || !canCreate ? styles.syncTriggerDisabled : ''}`}
         role="button"
-        onClick={syncBusy ? undefined : handlePull}
+        onClick={syncBusy || !canCreate ? undefined : handlePull}
       >
         <span className={styles.aheadBehindStat}>
           {pulling ? <RingLoadingIcon size={10} /> : <Icon icon={ArrowDownIcon} size={10} />}
@@ -313,10 +316,10 @@ const GitStatus = memo<GitStatusProps>(({ path, isGithub }) => {
     <Tooltip title={pushTooltip}>
       <div
         aria-busy={pushing}
-        aria-disabled={syncBusy}
-        className={`${styles.syncTrigger} ${styles.aheadStat} ${syncBusy ? styles.syncTriggerDisabled : ''}`}
+        aria-disabled={syncBusy || !canCreate}
+        className={`${styles.syncTrigger} ${styles.aheadStat} ${syncBusy || !canCreate ? styles.syncTriggerDisabled : ''}`}
         role="button"
-        onClick={syncBusy ? undefined : handlePush}
+        onClick={syncBusy || !canCreate ? undefined : handlePush}
       >
         <span className={styles.aheadBehindStat}>
           {pushing ? <RingLoadingIcon size={10} /> : <Icon icon={ArrowUpIcon} size={10} />}

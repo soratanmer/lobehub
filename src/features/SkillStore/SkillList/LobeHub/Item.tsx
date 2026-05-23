@@ -8,6 +8,8 @@ import { Loader2, MoreVerticalIcon, Plus, Unplug } from 'lucide-react';
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { usePermission } from '@/hooks/usePermission';
+
 import { itemStyles } from '../style';
 import { useSkillConnect } from './useSkillConnect';
 
@@ -27,6 +29,8 @@ const Item = memo<ItemProps>(
     const { t } = useTranslation('setting');
     const styles = itemStyles;
     const { modal } = App.useApp();
+    const { allowed: canCreate } = usePermission('create_content');
+    const { allowed: canEdit } = usePermission('edit_own_content');
 
     const { handleConnect, handleDisconnect, isConnected, isConnecting } = useSkillConnect({
       identifier,
@@ -42,6 +46,7 @@ const Item = memo<ItemProps>(
     });
 
     const confirmDisconnect = () => {
+      if (!canEdit) return;
       modal.confirm({
         cancelText: t('cancel', { ns: 'common' }),
         centered: true,
@@ -73,6 +78,7 @@ const Item = memo<ItemProps>(
             items={[
               {
                 danger: true,
+                disabled: !canEdit,
                 icon: <Icon icon={Unplug} />,
                 key: 'disconnect',
                 label: t('tools.lobehubSkill.disconnect'),
@@ -80,13 +86,21 @@ const Item = memo<ItemProps>(
               },
             ]}
           >
-            <ActionIcon icon={MoreVerticalIcon} />
+            <ActionIcon disabled={!canEdit} icon={MoreVerticalIcon} />
           </DropdownMenu>
         );
       }
 
       return (
-        <ActionIcon icon={Plus} title={t('tools.lobehubSkill.connect')} onClick={handleConnect} />
+        <ActionIcon
+          disabled={!canCreate || !canEdit}
+          icon={Plus}
+          title={t('tools.lobehubSkill.connect')}
+          onClick={() => {
+            if (!canCreate || !canEdit) return;
+            handleConnect();
+          }}
+        />
       );
     };
 
