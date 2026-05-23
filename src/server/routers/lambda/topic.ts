@@ -8,6 +8,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { after } from 'next/server';
 import { z } from 'zod';
 
+import { withContentMutation } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { MessageModel } from '@/database/models/message';
 import { TopicModel } from '@/database/models/topic';
@@ -85,6 +86,7 @@ export const topicRouter = router({
     }),
 
   batchCreateTopics: topicProcedure
+    .use(withContentMutation('topic:create'))
     .input(
       z.array(
         z
@@ -117,18 +119,21 @@ export const topicRouter = router({
     }),
 
   batchDelete: topicProcedure
+    .use(withContentMutation('topic:delete'))
     .input(z.object({ ids: z.array(z.string()) }))
     .mutation(async ({ input, ctx }) => {
       return ctx.topicModel.batchDelete(input.ids);
     }),
 
   batchDeleteByAgentId: topicProcedure
+    .use(withContentMutation('topic:delete'))
     .input(z.object({ agentId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.topicModel.batchDeleteByAgentId(input.agentId);
     }),
 
   batchDeleteBySessionId: topicProcedure
+    .use(withContentMutation('topic:delete'))
     .input(
       z.object({
         agentId: z.string().optional(),
@@ -146,6 +151,7 @@ export const topicRouter = router({
     }),
 
   cloneTopic: topicProcedure
+    .use(withContentMutation('topic:create'))
     .input(z.object({ id: z.string(), newTitle: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       const data = await ctx.topicModel.duplicate(input.id, input.newTitle);
@@ -170,6 +176,7 @@ export const topicRouter = router({
     }),
 
   createTopic: topicProcedure
+    .use(withContentMutation('topic:create'))
     .input(
       z
         .object({
@@ -198,6 +205,7 @@ export const topicRouter = router({
    * Disable sharing for a topic (deletes share record)
    */
   disableSharing: topicProcedure
+    .use(withContentMutation('topic:update'))
     .input(z.object({ topicId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.topicShareModel.deleteByTopicId(input.topicId);
@@ -207,6 +215,7 @@ export const topicRouter = router({
    * Enable sharing for a topic (creates share record)
    */
   enableSharing: topicProcedure
+    .use(withContentMutation('topic:update'))
     .input(
       z.object({
         topicId: z.string(),
@@ -320,6 +329,7 @@ export const topicRouter = router({
   }),
 
   importTopic: topicProcedure
+    .use(withContentMutation('topic:create'))
     .input(
       z.object({
         agentId: z.string(),
@@ -495,11 +505,14 @@ export const topicRouter = router({
       });
     }),
 
-  removeAllTopics: topicProcedure.mutation(async ({ ctx }) => {
-    return ctx.topicModel.deleteAll();
-  }),
+  removeAllTopics: topicProcedure
+    .use(withContentMutation('topic:delete'))
+    .mutation(async ({ ctx }) => {
+      return ctx.topicModel.deleteAll();
+    }),
 
   removeTopic: topicProcedure
+    .use(withContentMutation('topic:delete'))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.topicModel.delete(input.id);
@@ -528,6 +541,7 @@ export const topicRouter = router({
    * Update share visibility
    */
   updateShareVisibility: topicProcedure
+    .use(withContentMutation('topic:update'))
     .input(
       z.object({
         topicId: z.string(),
@@ -539,6 +553,7 @@ export const topicRouter = router({
     }),
 
   updateTopic: topicProcedure
+    .use(withContentMutation('topic:update'))
     .input(
       z.object({
         id: z.string(),
@@ -585,6 +600,7 @@ export const topicRouter = router({
     }),
 
   updateTopicMetadata: topicProcedure
+    .use(withContentMutation('topic:update'))
     .input(
       z.object({
         id: z.string(),

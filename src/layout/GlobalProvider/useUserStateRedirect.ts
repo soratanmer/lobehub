@@ -6,10 +6,13 @@ import { isDesktop } from '@/const/version';
 import { onboardingSelectors } from '@/store/user/selectors';
 import { type UserInitializationState } from '@/types/user';
 
-const redirectIfNotOn = (currentPath: string, path: string) => {
-  if (!currentPath.startsWith(path)) {
-    window.location.href = path;
-  }
+const SKIP_PRESERVE_PREFIXES = ['/signin', '/signup', '/next-auth', '/onboarding'];
+
+export const buildOnboardingRedirectUrl = (pathname: string, search: string): string => {
+  const shouldPreserve =
+    pathname !== '/' && !SKIP_PRESERVE_PREFIXES.some((p) => pathname.startsWith(p));
+  if (!shouldPreserve) return '/onboarding';
+  return `/onboarding?callbackUrl=${encodeURIComponent(`${pathname}${search}`)}`;
 };
 
 export const useDesktopUserStateRedirect = () => {
@@ -20,11 +23,12 @@ export const useDesktopUserStateRedirect = () => {
 
 export const useWebUserStateRedirect = () =>
   useCallback((state: UserInitializationState) => {
-    const { pathname } = window.location;
+    const { pathname, search } = window.location;
 
     if (!onboardingSelectors.needsOnboarding(state)) return;
+    if (pathname.startsWith('/onboarding')) return;
 
-    redirectIfNotOn(pathname, '/onboarding');
+    window.location.href = buildOnboardingRedirectUrl(pathname, search);
   }, []);
 
 export const useUserStateRedirect = () => {

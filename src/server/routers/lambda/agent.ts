@@ -3,6 +3,7 @@ import { CreateAgentSchema, type KnowledgeItem } from '@lobechat/types';
 import { KnowledgeType } from '@lobechat/types';
 import { z } from 'zod';
 
+import { withContentMutation } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AgentModel } from '@/database/models/agent';
 import { ChatGroupModel } from '@/database/models/chatGroup';
@@ -49,6 +50,7 @@ export const agentRouter = router({
    * Returns the created agent ID and session ID
    */
   createAgent: agentProcedure
+    .use(withContentMutation('agent:create'))
     .input(
       z.object({
         config: CreateAgentSchema.optional(),
@@ -65,6 +67,7 @@ export const agentRouter = router({
     }),
 
   createAgentFiles: agentProcedure
+    .use(withContentMutation('agent:update'))
     .input(
       z.object({
         agentId: z.string(),
@@ -77,6 +80,7 @@ export const agentRouter = router({
     }),
 
   createAgentKnowledgeBase: agentProcedure
+    .use(withContentMutation('agent:update'))
     .input(
       z.object({
         agentId: z.string(),
@@ -98,6 +102,7 @@ export const agentRouter = router({
    * Returns only the agent ID.
    */
   createAgentOnly: agentProcedure
+    .use(withContentMutation('agent:create'))
     .input(
       z.object({
         config: z.object({}).passthrough().optional(),
@@ -115,6 +120,7 @@ export const agentRouter = router({
     }),
 
   deleteAgentFile: agentProcedure
+    .use(withContentMutation('agent:update'))
     .input(
       z.object({
         agentId: z.string(),
@@ -126,6 +132,7 @@ export const agentRouter = router({
     }),
 
   deleteAgentKnowledgeBase: agentProcedure
+    .use(withContentMutation('agent:update'))
     .input(
       z.object({
         agentId: z.string(),
@@ -141,6 +148,7 @@ export const agentRouter = router({
    * Returns the new agent ID and session ID.
    */
   duplicateAgent: agentProcedure
+    .use(withContentMutation('agent:fork'))
     .input(
       z.object({
         agentId: z.string(),
@@ -291,12 +299,14 @@ export const agentRouter = router({
    * Remove an agent and its associated session
    */
   removeAgent: agentProcedure
+    .use(withContentMutation('agent:delete'))
     .input(z.object({ agentId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.agentModel.delete(input.agentId);
     }),
 
   toggleFile: agentProcedure
+    .use(withContentMutation('agent:update'))
     .input(
       z.object({
         agentId: z.string(),
@@ -309,6 +319,7 @@ export const agentRouter = router({
     }),
 
   toggleKnowledgeBase: agentProcedure
+    .use(withContentMutation('agent:update'))
     .input(
       z.object({
         agentId: z.string(),
@@ -325,6 +336,7 @@ export const agentRouter = router({
     }),
 
   updateAgentConfig: agentProcedure
+    .use(withContentMutation('agent:update'))
     .input(
       z.object({
         agentId: z.string(),
@@ -340,6 +352,7 @@ export const agentRouter = router({
    * Pin or unpin an agent
    */
   updateAgentPinned: agentProcedure
+    .use(withContentMutation('agent:update'))
     .input(
       z.object({
         id: z.string(),

@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { withContentMutation } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { MessageModel } from '@/database/models/message';
 import { ThreadModel } from '@/database/models/thread';
@@ -46,23 +47,27 @@ const threadProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) =
 });
 
 export const threadRouter = router({
-  createThread: threadProcedure.input(createThreadSchema).mutation(async ({ input, ctx }) => {
-    const thread = ensureThreadCreated(
-      await ctx.threadModel.create({
-        id: input.id,
-        metadata: input.metadata,
-        parentThreadId: input.parentThreadId,
-        sourceMessageId: input.sourceMessageId,
-        title: input.title,
-        topicId: input.topicId,
-        type: input.type,
-      }),
-      input.id,
-    );
+  createThread: threadProcedure
+    .use(withContentMutation('topic:create'))
+    .input(createThreadSchema)
+    .mutation(async ({ input, ctx }) => {
+      const thread = ensureThreadCreated(
+        await ctx.threadModel.create({
+          id: input.id,
+          metadata: input.metadata,
+          parentThreadId: input.parentThreadId,
+          sourceMessageId: input.sourceMessageId,
+          title: input.title,
+          topicId: input.topicId,
+          type: input.type,
+        }),
+        input.id,
+      );
 
-    return thread.id;
-  }),
+      return thread.id;
+    }),
   createThreadWithMessage: threadProcedure
+    .use(withContentMutation('topic:create'))
     .input(
       createThreadSchema.extend({
         message: z.any(),
@@ -96,17 +101,21 @@ export const threadRouter = router({
       return ctx.threadModel.queryByTopicId(input.topicId);
     }),
 
-  removeAllThreads: threadProcedure.mutation(async ({ ctx }) => {
-    return ctx.threadModel.deleteAll();
-  }),
+  removeAllThreads: threadProcedure
+    .use(withContentMutation('topic:delete'))
+    .mutation(async ({ ctx }) => {
+      return ctx.threadModel.deleteAll();
+    }),
 
   removeThread: threadProcedure
+    .use(withContentMutation('topic:delete'))
     .input(z.object({ id: z.string(), removeChildren: z.boolean().optional() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.threadModel.delete(input.id);
     }),
 
   updateThread: threadProcedure
+    .use(withContentMutation('topic:update'))
     .input(
       z.object({
         id: z.string(),

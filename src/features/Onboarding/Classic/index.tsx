@@ -3,7 +3,7 @@
 import { MAX_ONBOARDING_STEPS } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { memo, useCallback } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 import Loading from '@/components/Loading/BrandTextLoading';
 import ModeSwitch from '@/features/Onboarding/components/ModeSwitch';
@@ -16,6 +16,12 @@ import { onboardingSelectors } from '@/store/user/selectors';
 
 const ClassicOnboardingPage = memo(() => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const callbackSuffix = searchParams.get('callbackUrl')
+    ? `&callbackUrl=${encodeURIComponent(searchParams.get('callbackUrl') as string)}`
+    : '';
+  const commonPath = `/onboarding${searchParams.get('callbackUrl') ? `?callbackUrl=${encodeURIComponent(searchParams.get('callbackUrl') as string)}` : ''}`;
+
   const [isUserStateInit, commonStepsCompleted, currentStep, goToNextStep, goToPreviousStep] =
     useUserStore((s) => [
       s.isUserStateInit,
@@ -28,15 +34,15 @@ const ClassicOnboardingPage = memo(() => {
   // FullNameStep is the branch's first step, so its back button leaves the
   // branch and re-enters the shared prefix's ResponseLanguageStep (step 2).
   const backToResponseLanguageStep = useCallback(() => {
-    navigate('/onboarding?step=2', { replace: true });
-  }, [navigate]);
+    navigate(`/onboarding?step=2${callbackSuffix}`, { replace: true });
+  }, [navigate, callbackSuffix]);
 
   if (!isUserStateInit) {
     return <Loading debugId="ClassicOnboarding" />;
   }
 
   if (!commonStepsCompleted) {
-    return <Navigate replace to="/onboarding" />;
+    return <Navigate replace to={commonPath} />;
   }
 
   const renderStep = () => {

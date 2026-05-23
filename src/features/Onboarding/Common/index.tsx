@@ -70,15 +70,33 @@ const CommonOnboardingPage = memo(() => {
   }, []);
 
   const goNextFromTelemetry = useCallback(() => {
-    setSearchParams({ step: '2' }, { replace: true });
+    setSearchParams(
+      (prev) => {
+        prev.set('step', '2');
+        return prev;
+      },
+      { replace: true },
+    );
   }, [setSearchParams]);
 
   const goBackFromLanguage = useCallback(() => {
-    setSearchParams({ step: '1' }, { replace: true });
+    setSearchParams(
+      (prev) => {
+        prev.set('step', '1');
+        return prev;
+      },
+      { replace: true },
+    );
   }, [setSearchParams]);
 
   const finishCommon = useCallback(() => {
-    setSearchParams({}, { replace: true });
+    setSearchParams(
+      (prev) => {
+        prev.delete('step');
+        return prev;
+      },
+      { replace: true },
+    );
   }, [setSearchParams]);
 
   if (!isUserStateInit) {
@@ -95,7 +113,11 @@ const CommonOnboardingPage = memo(() => {
       enableAgentOnboarding: !!enableAgentOnboarding,
       isDesktop,
     });
-    return <Navigate replace to={branchPath} />;
+    const callbackUrl = searchParams.get('callbackUrl');
+    const target = callbackUrl
+      ? `${branchPath}?callbackUrl=${encodeURIComponent(callbackUrl)}`
+      : branchPath;
+    return <Navigate replace to={target} />;
   }
 
   return (

@@ -10,8 +10,10 @@ import { Drawer } from 'antd';
 import { History } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 
 import Loading from '@/components/Loading/BrandTextLoading';
+import { isSafeRelativePath } from '@/features/Onboarding/Common/useFinishOnboardingRedirect';
 import ModeSwitch from '@/features/Onboarding/components/ModeSwitch';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { useClientDataSWR, useOnlyFetchOnceSWR } from '@/libs/swr';
@@ -105,10 +107,15 @@ const AgentOnboardingPage = memo(() => {
   const historyTopics = historyData?.items || [];
   const effectiveTopicId = selectedTopicId || activeTopicId;
   const onboardingFinished = !!agentOnboarding?.finishedAt;
+  const [searchParams] = useSearchParams();
+  const callbackUrlParam = searchParams.get('callbackUrl');
+  const safeCallbackUrl = isSafeRelativePath(callbackUrlParam) ? callbackUrlParam : undefined;
   const finishTargetUrl = useMemo(() => {
-    if (!onboardingFinished || !inboxAgentId || !effectiveTopicId) return undefined;
+    if (!onboardingFinished) return undefined;
+    if (safeCallbackUrl) return safeCallbackUrl;
+    if (!inboxAgentId || !effectiveTopicId) return undefined;
     return SESSION_CHAT_TOPIC_URL(inboxAgentId, effectiveTopicId);
-  }, [onboardingFinished, inboxAgentId, effectiveTopicId]);
+  }, [onboardingFinished, safeCallbackUrl, inboxAgentId, effectiveTopicId]);
 
   const viewingHistoricalTopic =
     !!activeTopicId && !!effectiveTopicId && effectiveTopicId !== activeTopicId;
