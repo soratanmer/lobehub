@@ -3,15 +3,13 @@
 import { memo } from 'react';
 
 import { NavPanelPortal } from '@/features/NavPanel';
-import SideBarLayout from '@/features/NavPanel/SideBarLayout';
 
-import Body from './Body';
-import Header from './Header';
+import WorkspaceSettingsSideBarContent from './Content';
 
 const SideBar = memo(() => {
   return (
     <NavPanelPortal navKey={'workspace-settings'}>
-      <SideBarLayout body={<Body />} header={<Header />} />
+      <WorkspaceSettingsSideBarContent />
     </NavPanelPortal>
   );
 });

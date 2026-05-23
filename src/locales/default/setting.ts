@@ -1056,7 +1056,7 @@ When I am ___, I need ___
   'workspace.billing.platformLine': 'Pro Platform · monthly',
   'workspace.billing.plan.enterprise': 'Enterprise',
   'workspace.billing.plan.hobby': 'Hobby',
-  'workspace.billing.plan.pro': 'Premium',
+  'workspace.billing.plan.pro': 'Pro',
   'workspace.billing.seatLine': 'Additional seats × {{count}}',
   'workspace.billing.seats.cancel': 'Cancel',
   'workspace.billing.seats.confirmContent':

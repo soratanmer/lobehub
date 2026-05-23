@@ -2,8 +2,11 @@
 
 import { type PropsWithChildren, type ReactNode } from 'react';
 import { memo, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { useLocation } from 'react-router-dom';
 
+import WorkspaceSettingsSideBarContent from '@/features/WorkspaceSetting/SideBar/Content';
 import SidebarContent from '@/routes/(main)/home/_layout/SidebarContent';
+import { useWorkspaceStore, workspaceSelectors } from '@/store/workspace';
 
 import { NavPanelDraggable } from './components/NavPanelDraggable';
 
@@ -29,6 +32,7 @@ const setNavPanelSnapshot = (snapshot: NavPanelSnapshot) => {
 };
 
 const FALLBACK_NAV_KEY = 'home';
+const WORKSPACE_SETTINGS_NAV_KEY = 'workspace-settings';
 
 const getActiveNavKey = () => currentSnapshot?.key ?? FALLBACK_NAV_KEY;
 
@@ -36,17 +40,37 @@ export const useActiveNavKey = () =>
   useSyncExternalStore(subscribeNavPanel, getActiveNavKey, getActiveNavKey);
 
 const NavPanel = memo(() => {
+  const { pathname } = useLocation();
+  const activeSlug = useWorkspaceStore((s) => workspaceSelectors.activeWorkspace(s)?.slug ?? null);
   const panelContent = useSyncExternalStore(
     subscribeNavPanel,
     getNavPanelSnapshot,
     getNavPanelSnapshot,
   );
 
+  const isWorkspaceSettingsRoute =
+    !!activeSlug &&
+    (pathname === `/${activeSlug}/settings` || pathname.startsWith(`/${activeSlug}/settings/`));
+  const workspaceSettingsFallback = isWorkspaceSettingsRoute
+    ? {
+        key: WORKSPACE_SETTINGS_NAV_KEY,
+        node: <WorkspaceSettingsSideBarContent />,
+      }
+    : null;
+
+  const resolvedPanelContent =
+    isWorkspaceSettingsRoute && panelContent?.key === FALLBACK_NAV_KEY
+      ? workspaceSettingsFallback
+      : panelContent;
+
   // Fallback renders the home sidebar's content directly — using `<Sidebar />`
   // (the portal wrapper) here loops with the portal's unmount cleanup:
   // mount fallback → portal sets snapshot → fallback unmounts → cleanup
   // clears snapshot → mount fallback → …
-  const activeContent = panelContent || { key: FALLBACK_NAV_KEY, node: <SidebarContent /> };
+  const activeContent =
+    resolvedPanelContent ||
+    workspaceSettingsFallback ||
+    ({ key: FALLBACK_NAV_KEY, node: <SidebarContent /> } satisfies NavPanelSnapshot);
 
   return (
     <>
