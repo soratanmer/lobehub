@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { and, desc, eq, ne, or } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import {
   getEnabledMessengerPlatforms,
   getMessengerDiscordConfig,
@@ -103,6 +104,7 @@ const messengerProcedure = authedProcedure.use(serverDatabase).use(async (opts) 
     },
   });
 });
+const messengerWriteProcedure = messengerProcedure.use(withScopedPermission('agent:update'));
 
 export const messengerRouter = router({
   /**
@@ -229,7 +231,7 @@ export const messengerRouter = router({
    * required so the user's first IM message has somewhere to land — they can
    * always change it later via `/agents` (tap to switch) or the per-agent UI.
    */
-  confirmLink: messengerProcedure
+  confirmLink: messengerWriteProcedure
     .input(
       z.object({
         initialAgentId: z.string().min(1, 'messenger.error.pickDefaultAgent'),
@@ -414,7 +416,7 @@ export const messengerRouter = router({
    * the active agent (next inbound message will get the "/agents to pick"
    * prompt). Pass `tenantId` to scope to a specific Slack workspace.
    */
-  setActiveAgent: messengerProcedure
+  setActiveAgent: messengerWriteProcedure
     .input(
       z.object({
         agentId: z.string().nullable(),
@@ -450,7 +452,7 @@ export const messengerRouter = router({
     }),
 
   /** Remove the user's account link for a platform (optionally scoped to one tenant). */
-  unlink: messengerProcedure
+  unlink: messengerWriteProcedure
     .input(z.object({ platform: platformEnum, tenantId: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       if (!(await isMessengerPlatformEnabled(input.platform))) {
@@ -513,7 +515,7 @@ export const messengerRouter = router({
    * Slack's `auth.revoke` to invalidate the token server-side is a
    * nice-to-have (frees a workspace bot slot), deferred to PR3.
    */
-  uninstallInstallation: messengerProcedure
+  uninstallInstallation: messengerWriteProcedure
     .input(z.object({ installationId: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
       const gateKeeper = await KeyVaultsGateKeeper.initWithEnvKey().catch(() => undefined);

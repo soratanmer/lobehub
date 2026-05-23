@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import {
   AgentEvalDatasetModel,
   AgentEvalRunModel,
@@ -50,6 +51,9 @@ const agentEvalExternalProcedure = authedProcedure.use(serverDatabase).use(async
     },
   });
 });
+const agentEvalExternalWriteProcedure = agentEvalExternalProcedure.use(
+  withScopedPermission('agent:update'),
+);
 
 type ReportResultInput = z.infer<typeof reportResultItemSchema> & { runId: string };
 
@@ -337,7 +341,7 @@ export const agentEvalExternalRouter = router({
       }));
     }),
 
-  reportResult: agentEvalExternalProcedure
+  reportResult: agentEvalExternalWriteProcedure
     .input(
       z.object({
         correct: z.boolean(),
@@ -350,7 +354,7 @@ export const agentEvalExternalRouter = router({
     )
     .mutation(async ({ ctx, input }) => applyReportResult(ctx, input, true)),
 
-  reportResultsBatch: agentEvalExternalProcedure
+  reportResultsBatch: agentEvalExternalWriteProcedure
     .input(z.object({ items: z.array(reportResultItemSchema).min(1), runId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const receipts = [];
@@ -391,7 +395,7 @@ export const agentEvalExternalRouter = router({
       };
     }),
 
-  runSetStatus: agentEvalExternalProcedure
+  runSetStatus: agentEvalExternalWriteProcedure
     .input(z.object({ runId: z.string(), status: runStatusSchema }))
     .mutation(async ({ ctx, input }) => {
       const run = await ctx.runModel.findById(input.runId);
@@ -450,7 +454,7 @@ export const agentEvalExternalRouter = router({
       };
     }),
 
-  runTopicReportResult: agentEvalExternalProcedure
+  runTopicReportResult: agentEvalExternalWriteProcedure
     .input(
       z.object({
         correct: z.boolean(),

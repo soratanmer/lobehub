@@ -3,6 +3,7 @@ import debug from 'debug';
 import { customAlphabet } from 'nanoid/non-secure';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { marketSDK, marketUserInfo, serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { type TrustedClientUserInfo } from '@/libs/trusted-client';
@@ -216,6 +217,7 @@ const agentProcedure = authedProcedure
       },
     });
   });
+const agentWriteProcedure = agentProcedure.use(withScopedPermission('agent:create'));
 
 // Schema definitions
 const createAgentSchema = z.object({
@@ -352,7 +354,7 @@ export const agentRouter = router({
    * Create a new agent in the marketplace
    * POST /market/agent/create
    */
-  createAgent: agentProcedure.input(createAgentSchema).mutation(async ({ input, ctx }) => {
+  createAgent: agentWriteProcedure.input(createAgentSchema).mutation(async ({ input, ctx }) => {
     log('createAgent input: %O', input);
 
     try {
@@ -372,7 +374,7 @@ export const agentRouter = router({
    * Create a new version for an existing agent
    * POST /market/agent/versions/create
    */
-  createAgentVersion: agentProcedure
+  createAgentVersion: agentWriteProcedure
     .input(createAgentVersionSchema)
     .mutation(async ({ input, ctx }) => {
       log('createAgentVersion input: %O', input);
@@ -394,7 +396,7 @@ export const agentRouter = router({
    * Deprecate an agent (permanently hide, cannot be republished)
    * POST /market/agent/:identifier/deprecate
    */
-  deprecateAgent: agentProcedure
+  deprecateAgent: agentWriteProcedure
     .input(z.object({ identifier: z.string() }))
     .mutation(async ({ input, ctx }) => {
       log('deprecateAgent input: %O', input);
@@ -419,7 +421,7 @@ export const agentRouter = router({
    * Best-effort: single-item failures are returned in-line as
    * `{ success: false, error }` and do not abort the rest of the batch.
    */
-  forkAgent: agentProcedure
+  forkAgent: agentWriteProcedure
     .input(z.object({ items: z.array(forkAgentItemSchema).min(1) }))
     .mutation(async ({ input, ctx }) => {
       log('forkAgent batch size: %d', input.items.length);
@@ -649,7 +651,7 @@ export const agentRouter = router({
    * Publish an agent (make it visible in marketplace)
    * POST /market/agent/:identifier/publish
    */
-  publishAgent: agentProcedure
+  publishAgent: agentWriteProcedure
     .input(z.object({ identifier: z.string() }))
     .mutation(async ({ input, ctx }) => {
       log('publishAgent input: %O', input);
@@ -676,93 +678,95 @@ export const agentRouter = router({
    *
    * Returns: { identifier, isNewAgent, success }
    */
-  publishOrCreate: agentProcedure.input(publishOrCreateSchema).mutation(async ({ input, ctx }) => {
-    log('publishOrCreate input: %O', input);
+  publishOrCreate: agentWriteProcedure
+    .input(publishOrCreateSchema)
+    .mutation(async ({ input, ctx }) => {
+      log('publishOrCreate input: %O', input);
 
-    const { identifier: inputIdentifier, name, ...versionData } = input;
-    let finalIdentifier = inputIdentifier;
-    let isNewAgent = false;
+      const { identifier: inputIdentifier, name, ...versionData } = input;
+      let finalIdentifier = inputIdentifier;
+      let isNewAgent = false;
 
-    try {
-      // Step 1: Check ownership if identifier is provided
-      if (inputIdentifier) {
-        try {
-          const agentDetail = await ctx.marketSDK.agents.getAgentDetail(inputIdentifier);
-          log('Agent detail for ownership check: ownerId=%s', agentDetail?.ownerId);
+      try {
+        // Step 1: Check ownership if identifier is provided
+        if (inputIdentifier) {
+          try {
+            const agentDetail = await ctx.marketSDK.agents.getAgentDetail(inputIdentifier);
+            log('Agent detail for ownership check: ownerId=%s', agentDetail?.ownerId);
 
-          // Get Market user info to get accountId (Market's user ID)
-          // Support both trustedClientToken and OIDC accessToken authentication
-          const userInfo = ctx.marketUserInfo as TrustedClientUserInfo | undefined;
-          const accessToken = (ctx as { marketOidcAccessToken?: string }).marketOidcAccessToken;
-          let currentAccountId: number | null = null;
+            // Get Market user info to get accountId (Market's user ID)
+            // Support both trustedClientToken and OIDC accessToken authentication
+            const userInfo = ctx.marketUserInfo as TrustedClientUserInfo | undefined;
+            const accessToken = (ctx as { marketOidcAccessToken?: string }).marketOidcAccessToken;
+            let currentAccountId: number | null = null;
 
-          const marketUserInfoResult = await fetchMarketUserInfo({ accessToken, userInfo });
-          currentAccountId = marketUserInfoResult?.accountId ?? null;
-          log('Market user info: accountId=%s', currentAccountId);
+            const marketUserInfoResult = await fetchMarketUserInfo({ accessToken, userInfo });
+            currentAccountId = marketUserInfoResult?.accountId ?? null;
+            log('Market user info: accountId=%s', currentAccountId);
 
-          const ownerId = agentDetail?.ownerId;
+            const ownerId = agentDetail?.ownerId;
 
-          log('Ownership check: currentAccountId=%s, ownerId=%s', currentAccountId, ownerId);
+            log('Ownership check: currentAccountId=%s, ownerId=%s', currentAccountId, ownerId);
 
-          if (!currentAccountId || `${ownerId}` !== `${currentAccountId}`) {
-            // Not the owner, need to create a new agent
-            log('User is not owner, will create new agent');
+            if (!currentAccountId || `${ownerId}` !== `${currentAccountId}`) {
+              // Not the owner, need to create a new agent
+              log('User is not owner, will create new agent');
+              finalIdentifier = undefined;
+              isNewAgent = true;
+            }
+          } catch (detailError) {
+            // Agent not found or error, create new
+            log('Agent not found or error, will create new: %O', detailError);
             finalIdentifier = undefined;
             isNewAgent = true;
           }
-        } catch (detailError) {
-          // Agent not found or error, create new
-          log('Agent not found or error, will create new: %O', detailError);
-          finalIdentifier = undefined;
+        } else {
           isNewAgent = true;
         }
-      } else {
-        isNewAgent = true;
-      }
 
-      // Step 2: Create new agent if needed
-      if (!finalIdentifier) {
-        // Generate a unique 8-character identifier
-        finalIdentifier = generateMarketIdentifier();
-        isNewAgent = true;
+        // Step 2: Create new agent if needed
+        if (!finalIdentifier) {
+          // Generate a unique 8-character identifier
+          finalIdentifier = generateMarketIdentifier();
+          isNewAgent = true;
 
-        log('Creating new agent with identifier: %s', finalIdentifier);
+          log('Creating new agent with identifier: %s', finalIdentifier);
 
-        await ctx.marketSDK.agents.createAgent({
+          await ctx.marketSDK.agents.createAgent({
+            identifier: finalIdentifier,
+            name,
+          });
+        }
+
+        // Step 3: Create version for the agent
+        log('Creating version for agent: %s', finalIdentifier);
+
+        await ctx.marketSDK.agents.createAgentVersion({
+          ...versionData,
           identifier: finalIdentifier,
           name,
         });
+
+        return {
+          identifier: finalIdentifier,
+          isNewAgent,
+          success: true,
+        };
+      } catch (error) {
+        log('Error in publishOrCreate: %O', error);
+        throw new TRPCError({
+          cause: error,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to publish agent',
+        });
       }
-
-      // Step 3: Create version for the agent
-      log('Creating version for agent: %s', finalIdentifier);
-
-      await ctx.marketSDK.agents.createAgentVersion({
-        ...versionData,
-        identifier: finalIdentifier,
-        name,
-      });
-
-      return {
-        identifier: finalIdentifier,
-        isNewAgent,
-        success: true,
-      };
-    } catch (error) {
-      log('Error in publishOrCreate: %O', error);
-      throw new TRPCError({
-        cause: error,
-        code: 'INTERNAL_SERVER_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to publish agent',
-      });
-    }
-  }),
+    }),
 
   /**
    * Unpublish an agent (hide from marketplace, can be republished)
    * POST /market/agent/:identifier/unpublish
    */
-  unpublishAgent: agentProcedure
+  unpublishAgent: agentWriteProcedure
     .input(z.object({ identifier: z.string() }))
     .mutation(async ({ input, ctx }) => {
       log('unpublishAgent input: %O', input);

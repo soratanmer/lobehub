@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import debug from 'debug';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { TopicModel } from '@/database/models/topic';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
@@ -21,6 +22,7 @@ const agentNotifyProcedure = authedProcedure.use(serverDatabase).use(async (opts
     },
   });
 });
+const agentNotifyWriteProcedure = agentNotifyProcedure.use(withScopedPermission('message:create'));
 
 const NotifySchema = z.object({
   /** Agent ID to trigger (overrides the topic's default agent) */
@@ -38,7 +40,7 @@ export const agentNotifyRouter = router({
    * Receive a callback message from an external agent (e.g. Claude Code),
    * write it into a topic, and trigger the agent loop to process it.
    */
-  notify: agentNotifyProcedure.input(NotifySchema).mutation(async ({ input, ctx }) => {
+  notify: agentNotifyWriteProcedure.input(NotifySchema).mutation(async ({ input, ctx }) => {
     const { topicId, content, agentId: inputAgentId, threadId } = input;
 
     log('notify: topicId=%s, agentId=%s, content=%s', topicId, inputAgentId, content.slice(0, 80));

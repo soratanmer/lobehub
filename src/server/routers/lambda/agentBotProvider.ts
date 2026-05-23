@@ -127,14 +127,14 @@ export const agentBotProviderRouter = router({
       return getBotRuntimeStatus(input.platform, input.applicationId);
     }),
 
-  refreshRuntimeStatus: authedProcedure
+  refreshRuntimeStatus: agentBotProviderProcedureWrite
     .input(z.object({ applicationId: z.string(), platform: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const service = new GatewayService();
       return service.refreshBotRuntimeStatus(input.platform, input.applicationId, ctx.userId);
     }),
 
-  refreshRuntimeStatusesByAgent: authedProcedure
+  refreshRuntimeStatusesByAgent: agentBotProviderProcedureWrite
     .input(z.object({ agentId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const service = new GatewayService();

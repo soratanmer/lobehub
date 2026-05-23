@@ -1,6 +1,7 @@
 import { type NotebookDocument } from '@lobechat/types';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { DocumentModel } from '@/database/models/document';
 import { TopicDocumentModel } from '@/database/models/topicDocument';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
@@ -22,6 +23,7 @@ const notebookProcedure = authedProcedure.use(serverDatabase).use(async (opts) =
 
 export const notebookRouter = router({
   createDocument: notebookProcedure
+    .use(withScopedPermission('document:create'))
     .input(
       z.object({
         content: z.string(),
@@ -61,6 +63,7 @@ export const notebookRouter = router({
     }),
 
   deleteDocument: notebookProcedure
+    .use(withScopedPermission('document:delete'))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.notebookService.deleteDocument(input.id);
@@ -105,6 +108,7 @@ export const notebookRouter = router({
     }),
 
   updateDocument: notebookProcedure
+    .use(withScopedPermission('document:update'))
     .input(
       z.object({
         append: z.boolean().optional(),

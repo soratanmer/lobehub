@@ -3,6 +3,7 @@ import debug from 'debug';
 import { customAlphabet } from 'nanoid/non-secure';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { marketSDK, marketUserInfo, serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { type TrustedClientUserInfo } from '@/libs/trusted-client';
@@ -106,6 +107,7 @@ const agentGroupProcedure = authedProcedure
       },
     });
   });
+const agentGroupWriteProcedure = agentGroupProcedure.use(withScopedPermission('agent:create'));
 
 // Schema definitions
 const memberAgentSchema = z.object({
@@ -205,7 +207,7 @@ export const agentGroupRouter = router({
    * Deprecate agent group
    * POST /market/agent-group/:identifier/deprecate
    */
-  deprecateAgentGroup: agentGroupProcedure
+  deprecateAgentGroup: agentGroupWriteProcedure
     .input(z.object({ identifier: z.string() }))
     .mutation(async ({ input, ctx }) => {
       log('deprecateAgentGroup input: %O', input);
@@ -263,7 +265,7 @@ export const agentGroupRouter = router({
    * Fork an agent group
    * POST /market/agent-group/:identifier/fork
    */
-  forkAgentGroup: agentGroupProcedure
+  forkAgentGroup: agentGroupWriteProcedure
     .input(
       z.object({
         identifier: z.string(),
@@ -590,7 +592,7 @@ export const agentGroupRouter = router({
    * Publish agent group
    * POST /market/agent-group/:identifier/publish
    */
-  publishAgentGroup: agentGroupProcedure
+  publishAgentGroup: agentGroupWriteProcedure
     .input(z.object({ identifier: z.string() }))
     .mutation(async ({ input, ctx }) => {
       log('publishAgentGroup input: %O', input);
@@ -650,7 +652,7 @@ export const agentGroupRouter = router({
    * 2. If not owner or no identifier, create new group
    * 3. Create new version for the group if updating
    */
-  publishOrCreate: agentGroupProcedure
+  publishOrCreate: agentGroupWriteProcedure
     .input(publishOrCreateGroupSchema)
     .mutation(async ({ input, ctx }) => {
       log('publishOrCreate input: %O', input);
@@ -742,7 +744,7 @@ export const agentGroupRouter = router({
    * Unpublish agent group
    * POST /market/agent-group/:identifier/unpublish
    */
-  unpublishAgentGroup: agentGroupProcedure
+  unpublishAgentGroup: agentGroupWriteProcedure
     .input(z.object({ identifier: z.string() }))
     .mutation(async ({ input, ctx }) => {
       log('unpublishAgentGroup input: %O', input);

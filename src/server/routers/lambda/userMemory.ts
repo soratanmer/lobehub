@@ -11,6 +11,7 @@ import {
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { AsyncTaskModel, initUserMemoryExtractionMetadata } from '@/database/models/asyncTask';
 import { TopicModel } from '@/database/models/topic';
 import {
@@ -50,6 +51,7 @@ const userMemoryProcedure = authedProcedure.use(serverDatabase).use(async (opts)
     },
   });
 });
+const userMemoryWriteProcedure = userMemoryProcedure.use(withScopedPermission('message:create'));
 
 const userMemoryExtractionInputSchema = z.object({
   fromDate: z.coerce.date().optional(),
@@ -76,7 +78,7 @@ const getUserMemoryExtractionTimeoutMs = (metadata: UserMemoryExtractionMetadata
 
 export const userMemoryRouter = router({
   // ============ Identity CRUD ============
-  createIdentity: userMemoryProcedure
+  createIdentity: userMemoryWriteProcedure
     .input(CreateUserMemoryIdentitySchema)
     .mutation(async ({ ctx, input }) => {
       return ctx.userMemoryModel.addIdentityEntry({
@@ -93,40 +95,40 @@ export const userMemoryRouter = router({
     }),
 
   // ============ Activity CRUD ============
-  deleteActivity: userMemoryProcedure
+  deleteActivity: userMemoryWriteProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.activityModel.delete(input.id);
     }),
 
-  deleteAll: userMemoryProcedure.mutation(async ({ ctx }) => {
+  deleteAll: userMemoryWriteProcedure.mutation(async ({ ctx }) => {
     await ctx.userMemoryModel.deleteAll();
 
     return { success: true };
   }),
 
   // ============ Context CRUD ============
-  deleteContext: userMemoryProcedure
+  deleteContext: userMemoryWriteProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.contextModel.delete(input.id);
     }),
 
   // ============ Experience CRUD ============
-  deleteExperience: userMemoryProcedure
+  deleteExperience: userMemoryWriteProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.experienceModel.delete(input.id);
     }),
 
-  deleteIdentity: userMemoryProcedure
+  deleteIdentity: userMemoryWriteProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.userMemoryModel.removeIdentityEntry(input.id);
     }),
 
   // ============ Preference CRUD ============
-  deletePreference: userMemoryProcedure
+  deletePreference: userMemoryWriteProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.preferenceModel.delete(input.id);
@@ -217,7 +219,7 @@ export const userMemoryRouter = router({
     return ctx.userMemoryModel.searchPreferences({});
   }),
 
-  requestMemoryFromChatTopic: userMemoryProcedure
+  requestMemoryFromChatTopic: userMemoryWriteProcedure
     .input(userMemoryExtractionInputSchema)
     .mutation(async ({ ctx, input }) => {
       if (input.fromDate && input.toDate && input.fromDate > input.toDate) {
@@ -327,7 +329,7 @@ export const userMemoryRouter = router({
       };
     }),
 
-  updateActivity: userMemoryProcedure
+  updateActivity: userMemoryWriteProcedure
     .input(
       z.object({
         data: z.object({
@@ -342,7 +344,7 @@ export const userMemoryRouter = router({
       return ctx.activityModel.update(input.id, input.data);
     }),
 
-  updateContext: userMemoryProcedure
+  updateContext: userMemoryWriteProcedure
     .input(
       z.object({
         data: z.object({
@@ -357,7 +359,7 @@ export const userMemoryRouter = router({
       return ctx.contextModel.update(input.id, input.data);
     }),
 
-  updateExperience: userMemoryProcedure
+  updateExperience: userMemoryWriteProcedure
     .input(
       z.object({
         data: z.object({
@@ -372,7 +374,7 @@ export const userMemoryRouter = router({
       return ctx.experienceModel.update(input.id, input.data);
     }),
 
-  updateIdentity: userMemoryProcedure
+  updateIdentity: userMemoryWriteProcedure
     .input(
       z.object({
         data: UpdateUserMemoryIdentitySchema,
@@ -393,7 +395,7 @@ export const userMemoryRouter = router({
       });
     }),
 
-  updatePreference: userMemoryProcedure
+  updatePreference: userMemoryWriteProcedure
     .input(
       z.object({
         data: z.object({
