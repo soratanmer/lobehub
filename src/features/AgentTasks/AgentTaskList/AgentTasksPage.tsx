@@ -8,6 +8,7 @@ import ToggleRightPanelButton from '@/features/RightPanel/ToggleRightPanelButton
 import WideScreenContainer from '@/features/WideScreenContainer';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { usePermission } from '@/hooks/usePermission';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
 import { useTaskStore } from '@/store/task';
@@ -27,6 +28,7 @@ import TasksGroupConfig from './TasksGroupConfig';
 const AgentTasksPage = memo(() => {
   const navigate = useWorkspaceAwareNavigate();
   const isMobile = useIsMobile();
+  const { allowed: canCreateTask, reason } = usePermission('create_content');
   const viewMode = useTaskStore(taskListSelectors.viewMode);
   const useFetchTaskList = useTaskStore((s) => s.useFetchTaskList);
   useFetchTaskList({ allAgents: true });
@@ -48,12 +50,13 @@ const AgentTasksPage = memo(() => {
   );
 
   const handleCreateTask = useCallback(() => {
+    if (!canCreateTask) return;
     createTaskModal({
       onCreated: (task) => {
         navigate(`/task/${task.identifier}`);
       },
     });
-  }, [navigate]);
+  }, [canCreateTask, navigate]);
 
   const handleShowHiddenCompleted = useCallback(() => {
     setViewOptions((prev) => ({ ...prev, hideCompleted: false }));
@@ -69,8 +72,10 @@ const AgentTasksPage = memo(() => {
           <Flexbox horizontal align={'center'} gap={4}>
             {(inlineCollapsed || viewMode === 'kanban') && (
               <ActionIcon
+                disabled={!canCreateTask}
                 icon={Plus}
                 size={DESKTOP_HEADER_ICON_SMALL_SIZE}
+                title={canCreateTask ? undefined : reason}
                 onClick={handleCreateTask}
               />
             )}

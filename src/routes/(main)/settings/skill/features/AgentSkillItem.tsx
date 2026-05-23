@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 
 import SkillSourceTag from '@/components/SkillSourceTag';
 import { createBuiltinAgentSkillDetailModal } from '@/features/SkillStore/SkillDetail';
+import { usePermission } from '@/hooks/usePermission';
 import { agentSkillService } from '@/services/skill';
 import { useToolStore } from '@/store/tool';
 import { builtinToolSelectors } from '@/store/tool/selectors';
@@ -44,6 +45,8 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
   const [loading, setLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const { allowed: canCreate } = usePermission('create_content');
+  const { allowed: canEdit } = usePermission('edit_own_content');
 
   const isBuiltin = isBuiltinSkill(skill);
 
@@ -76,6 +79,7 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
   };
 
   const handleUninstall = () => {
+    if (!canEdit) return;
     modal.confirm({
       centered: true,
       okButtonProps: { danger: true },
@@ -115,6 +119,7 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
             items={[
               {
                 danger: true,
+                disabled: !canEdit,
                 icon: <Icon icon={Trash2} />,
                 key: 'uninstall',
                 label: tp('store.actions.uninstall'),
@@ -122,12 +127,19 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
               },
             ]}
           >
-            <Button icon={MoreHorizontalIcon} />
+            <Button disabled={!canEdit} icon={MoreHorizontalIcon} />
           </DropdownMenu>
         );
       }
       return (
-        <Button icon={Plus} onClick={() => installBuiltinTool(skill.identifier)}>
+        <Button
+          disabled={!canCreate}
+          icon={Plus}
+          onClick={() => {
+            if (!canCreate) return;
+            installBuiltinTool(skill.identifier);
+          }}
+        >
           {tp('store.actions.install')}
         </Button>
       );
@@ -135,7 +147,9 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
 
     return (
       <Space.Compact>
-        <Button onClick={() => setEditOpen(true)}>{tp('store.actions.configure')}</Button>
+        <Button disabled={!canEdit} onClick={() => setEditOpen(true)}>
+          {tp('store.actions.configure')}
+        </Button>
         <DropdownMenu
           placement="bottomRight"
           items={[
@@ -152,6 +166,7 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
               : []),
             {
               danger: true,
+              disabled: !canEdit,
               icon: <Trash2 size={16} />,
               key: 'uninstall',
               label: tp('store.actions.uninstall'),
@@ -159,7 +174,7 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
             },
           ]}
         >
-          <Button icon={MoreHorizontalIcon} loading={loading} />
+          <Button disabled={!canEdit} icon={MoreHorizontalIcon} loading={loading} />
         </DropdownMenu>
       </Space.Compact>
     );

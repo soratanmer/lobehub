@@ -9,6 +9,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { usePermission } from '@/hooks/usePermission';
 import { taskService } from '@/services/task';
 import { useTaskStore } from '@/store/task';
 import { taskDetailSelectors } from '@/store/task/selectors';
@@ -128,6 +129,7 @@ const TaskSubtasks = memo(() => {
   const { t } = useTranslation('chat');
   const { message, modal } = App.useApp();
   const navigate = useWorkspaceAwareNavigate();
+  const { allowed: canEditTask, reason } = usePermission('create_content');
   const agentId = useTaskStore(taskDetailSelectors.activeTaskAgentId);
   const subtasks = useTaskStore(taskDetailSelectors.activeTaskSubtasks);
   const taskId = useTaskStore(taskDetailSelectors.activeTaskId);
@@ -165,6 +167,7 @@ const TaskSubtasks = memo(() => {
 
   const handleRightClick = useCallback(
     ({ event, node }: { event: MouseEvent; node: { key: Key } }) => {
+      if (!canEditTask) return;
       const subtask = subtaskMap.get(String(node.key));
       if (!subtask) return;
       event.preventDefault();
@@ -183,12 +186,16 @@ const TaskSubtasks = memo(() => {
         status: subtask.status,
       });
     },
-    [subtaskMap, buildItems, installKeyboardHandlers],
+    [canEditTask, subtaskMap, buildItems, installKeyboardHandlers],
   );
 
-  const toggleCreating = useCallback(() => setIsCreating((prev) => !prev), []);
+  const toggleCreating = useCallback(() => {
+    if (!canEditTask) return;
+    setIsCreating((prev) => !prev);
+  }, [canEditTask]);
 
   const handleRunAll = useCallback(async () => {
+    if (!canEditTask) return;
     if (!taskId || isPlanning) return;
     setIsPlanning(true);
     try {
@@ -240,7 +247,7 @@ const TaskSubtasks = memo(() => {
     } finally {
       setIsPlanning(false);
     }
-  }, [taskId, isPlanning, message, modal, t, runReadySubtasks]);
+  }, [canEditTask, taskId, isPlanning, message, modal, t, runReadySubtasks]);
 
   if (!taskId) return null;
 
@@ -280,17 +287,18 @@ const TaskSubtasks = memo(() => {
             </Flexbox>
             <Flexbox horizontal align="center" gap={4}>
               <ActionIcon
-                disabled={isPlanning}
+                disabled={!canEditTask || isPlanning}
                 icon={PlayCircle}
                 loading={isPlanning}
                 size="small"
-                title={t('taskDetail.runAll')}
+                title={canEditTask ? t('taskDetail.runAll') : reason}
                 onClick={handleRunAll}
               />
               <ActionIcon
+                disabled={!canEditTask}
                 icon={Plus}
                 size="small"
-                title={t('taskDetail.addSubtask')}
+                title={canEditTask ? t('taskDetail.addSubtask') : reason}
                 onClick={toggleCreating}
               />
             </Flexbox>
@@ -336,6 +344,7 @@ const TaskSubtasks = memo(() => {
             paddingBlock={4}
             paddingInline={8}
             style={{ width: 'fit-content' }}
+            title={canEditTask ? undefined : reason}
             variant="borderless"
             onClick={toggleCreating}
           >

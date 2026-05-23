@@ -10,6 +10,7 @@ import { type KeyboardEvent, memo, useCallback, useEffect, useRef, useState } fr
 import { useTranslation } from 'react-i18next';
 
 import { EditorCanvas } from '@/features/EditorCanvas';
+import { usePermission } from '@/hooks/usePermission';
 import { useGlobalStore } from '@/store/global';
 import { useTaskStore } from '@/store/task';
 
@@ -32,6 +33,7 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
   ({ agentId, onCreated, showInlineToggle = true }) => {
     const { t } = useTranslation('chat');
     const { close } = useModalContext();
+    const { allowed: canCreateTask, reason } = usePermission('create_content');
 
     const createTask = useTaskStore((s) => s.createTask);
     const isCreating = useTaskStore((s) => s.isCreatingTask);
@@ -57,6 +59,7 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
     }, [editor]);
 
     const handleSubmit = useCallback(async () => {
+      if (!canCreateTask) return;
       const instruction = instructionRef.current.trim();
       if (!instruction && !title.trim()) return;
 
@@ -74,7 +77,7 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
           identifier: result.identifier,
         });
       }
-    }, [assigneeAgentId, close, createTask, onCreated, priority, title]);
+    }, [assigneeAgentId, canCreateTask, close, createTask, onCreated, priority, title]);
 
     const handleSubmitRef = useRef(handleSubmit);
     useEffect(() => {
@@ -187,10 +190,11 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
           </Flexbox>
 
           <Button
-            disabled={isCreating}
+            disabled={!canCreateTask || isCreating}
             loading={isCreating}
             shape={'round'}
             size={'small'}
+            title={canCreateTask ? undefined : reason}
             type={'primary'}
             onClick={handleSubmit}
           >

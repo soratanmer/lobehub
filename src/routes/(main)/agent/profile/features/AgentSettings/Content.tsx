@@ -12,6 +12,7 @@ import { shallow } from 'zustand/shallow';
 import Menu from '@/components/Menu';
 import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { AgentSettings as Settings } from '@/features/AgentSetting';
+import { usePermission } from '@/hooks/usePermission';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { ChatSettingsTabs } from '@/store/global/initialState';
@@ -20,6 +21,7 @@ import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfi
 const Content = memo(() => {
   const { t } = useTranslation('setting');
   const theme = useTheme();
+  const { allowed: canEdit } = usePermission('edit_own_content');
   const [agentId, isInbox] = useAgentStore(
     (s) => [s.activeAgentId, builtinAgentSelectors.isInboxAgent(s)],
     shallow,
@@ -30,11 +32,13 @@ const Content = memo(() => {
   const [tab, setTab] = useState(isInbox ? ChatSettingsTabs.Modal : ChatSettingsTabs.Opening);
 
   const updateAgentConfig = async (config: any) => {
+    if (!canEdit) return;
     if (!agentId) return;
     await useAgentStore.getState().optimisticUpdateAgentConfig(agentId, config);
   };
 
   const updateAgentMeta = async (meta: any) => {
+    if (!canEdit) return;
     if (!agentId) return;
     await useAgentStore.getState().optimisticUpdateAgentMeta(agentId, meta);
   };
@@ -128,6 +132,7 @@ const Content = memo(() => {
       >
         <Settings
           config={config}
+          disabled={!canEdit}
           id={agentId}
           loading={false}
           meta={meta}

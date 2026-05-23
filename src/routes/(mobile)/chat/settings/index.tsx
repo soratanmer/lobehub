@@ -10,6 +10,7 @@ import MobileContentLayout from '@/components/server/MobileNavLayout';
 import { useCategory } from '@/features/AgentSetting/AgentCategory/useCategory';
 import AgentSettings from '@/features/AgentSetting/AgentSettings';
 import Footer from '@/features/Setting/Footer';
+import { usePermission } from '@/hooks/usePermission';
 import MobileHeader from '@/routes/(mobile)/chat/settings/_layout/Header';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/selectors';
@@ -21,6 +22,7 @@ export default memo(() => {
   const [tab, setTab] = useState(ChatSettingsTabs.Prompt);
   const cateItems = useCategory();
   const id = useSessionStore((s) => s.activeId);
+  const { allowed: canEdit } = usePermission('edit_own_content');
 
   const [updateAgentConfig, updateAgentMeta, config, meta, title] = useAgentStore((s) => [
     s.updateAgentConfig,
@@ -46,6 +48,7 @@ export default memo(() => {
       />
       <AgentSettings
         config={config}
+        disabled={!canEdit}
         id={id}
         loading={isLoading}
         meta={meta}

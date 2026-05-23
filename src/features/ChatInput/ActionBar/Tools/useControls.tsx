@@ -32,6 +32,7 @@ import DevModal from '@/features/PluginDevModal';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { useCheckPluginsIsInstalled } from '@/hooks/useCheckPluginsIsInstalled';
 import { useFetchInstalledPlugins } from '@/hooks/useFetchInstalledPlugins';
+import { usePermission } from '@/hooks/usePermission';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
@@ -180,6 +181,12 @@ const styles = createStaticStyles(({ css }) => ({
       color: ${cssVar.colorTextSecondary};
       background: ${cssVar.colorFillTertiary};
     }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      background: transparent;
+    }
   `,
   deleteButton: css`
     cursor: pointer;
@@ -205,6 +212,12 @@ const styles = createStaticStyles(({ css }) => ({
 
     &:hover {
       background: ${cssVar.colorErrorBg};
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      background: transparent;
     }
   `,
   deleteDivider: css`
@@ -251,6 +264,12 @@ const styles = createStaticStyles(({ css }) => ({
 
     &:hover {
       background: ${cssVar.colorFillTertiary};
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      background: transparent;
     }
   `,
   policyItemIcon: css`
@@ -386,6 +405,7 @@ export const useControls = () => {
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [autoModeLoading, setAutoModeLoading] = useState(false);
+  const { allowed: canEdit } = usePermission('edit_own_content');
   const list = useToolStore(pluginSelectors.installedPluginMetaList, isEqual);
   const [
     uninstallPlugin,
@@ -431,12 +451,13 @@ export const useControls = () => {
 
   const updateSkillPolicy = useCallback(
     async (id: string, mode: SkillPolicyMode) => {
+      if (!canEdit) return;
       const shouldPin = mode === 'pinned';
       if (checkedSet.has(id) === shouldPin) return;
 
       await togglePlugin(id, shouldPin);
     },
-    [checkedSet, togglePlugin],
+    [canEdit, checkedSet, togglePlugin],
   );
 
   const openSkillPolicyMenu = useCallback((id: string) => {
@@ -461,9 +482,11 @@ export const useControls = () => {
       const renderPolicyItem = (value: SkillPolicyMode, icon: ReactNode) => (
         <button
           className={cx(styles.policyItem)}
+          disabled={!canEdit}
           type="button"
           onClick={async (event) => {
             event.stopPropagation();
+            if (!canEdit) return;
             setPolicyOpenId(null);
             await updateSkillPolicy(id, value);
           }}
@@ -500,9 +523,11 @@ export const useControls = () => {
           {configureConfig && (
             <button
               className={cx(styles.policyItem)}
+              disabled={!canEdit}
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
+                if (!canEdit) return;
                 setPolicyOpenId(null);
                 configureConfig.onConfigure();
               }}
@@ -516,9 +541,11 @@ export const useControls = () => {
           {deleteConfig && (
             <button
               className={cx(styles.deleteButton)}
+              disabled={!canEdit}
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
+                if (!canEdit) return;
                 setPolicyOpenId(null);
                 confirmModal({
                   content: t('tools.builtins.uninstallConfirm.desc', {
@@ -557,6 +584,7 @@ export const useControls = () => {
           <button
             aria-label={t('tools.skillActivateMode.title')}
             className={cx(styles.policyButton)}
+            disabled={!canEdit}
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -586,7 +614,7 @@ export const useControls = () => {
         </Popover>
       );
     },
-    [checkedSet, openSkillPolicyMenu, policyOpenId, t, updateSkillPolicy],
+    [canEdit, checkedSet, openSkillPolicyMenu, policyOpenId, t, updateSkillPolicy],
   );
 
   const renderToolLabel = useCallback(
@@ -1229,11 +1257,13 @@ export const useControls = () => {
           >
             <Switch
               checked={isAutoSkillMode}
+              disabled={!canEdit}
               loading={autoModeLoading}
               size="small"
               onClick={(_, event) => event.stopPropagation()}
               onChange={async (checked, event) => {
                 event?.stopPropagation?.();
+                if (!canEdit) return;
                 setAutoModeLoading(true);
                 try {
                   await updateAgentChatConfig({
@@ -1354,9 +1384,11 @@ export const useControls = () => {
         label: (
           <ToolItem
             checked={true}
+            disabled={!canEdit}
             id={item.identifier}
             label={item.meta?.title}
             onUpdate={async () => {
+              if (!canEdit) return;
               await togglePlugin(item.identifier);
             }}
           />
@@ -1413,9 +1445,11 @@ export const useControls = () => {
         label: (
           <ToolItem
             checked={true}
+            disabled={!canEdit}
             id={skill.identifier}
             label={skill.name}
             onUpdate={async () => {
+              if (!canEdit) return;
               await togglePlugin(skill.identifier);
             }}
           />
@@ -1484,9 +1518,11 @@ export const useControls = () => {
           label: (
             <ToolItem
               checked={true}
+              disabled={!canEdit}
               id={item.identifier}
               label={item.title}
               onUpdate={async () => {
+                if (!canEdit) return;
                 await togglePlugin(item.identifier);
               }}
             />
@@ -1529,9 +1565,11 @@ export const useControls = () => {
           label: (
             <ToolItem
               checked={true}
+              disabled={!canEdit}
               id={item.identifier}
               label={item.title}
               onUpdate={async () => {
+                if (!canEdit) return;
                 await togglePlugin(item.identifier);
               }}
             />
@@ -1570,9 +1608,11 @@ export const useControls = () => {
         label: (
           <ToolItem
             checked={true}
+            disabled={!canEdit}
             id={skill.identifier}
             label={skill.name}
             onUpdate={async () => {
+              if (!canEdit) return;
               await togglePlugin(skill.identifier);
             }}
           />
@@ -1607,9 +1647,11 @@ export const useControls = () => {
         label: (
           <ToolItem
             checked={true}
+            disabled={!canEdit}
             id={skill.identifier}
             label={skill.name}
             onUpdate={async () => {
+              if (!canEdit) return;
               await togglePlugin(skill.identifier);
             }}
           />
@@ -1648,6 +1690,7 @@ export const useControls = () => {
     lobehubSkillItems,
     checked,
     togglePlugin,
+    canEdit,
     t,
   ]);
 
@@ -1658,6 +1701,7 @@ export const useControls = () => {
       value={editingCustomPlugin}
       onValueChange={updateNewCustomPlugin}
       onDelete={() => {
+        if (!canEdit) return;
         if (editingPluginId) uninstallPlugin(editingPluginId);
         setEditingPluginId(null);
       }}
@@ -1665,6 +1709,7 @@ export const useControls = () => {
         if (!open) setEditingPluginId(null);
       }}
       onSave={async (devPlugin) => {
+        if (!canEdit) return;
         await installCustomPlugin(devPlugin);
         setEditingPluginId(null);
       }}

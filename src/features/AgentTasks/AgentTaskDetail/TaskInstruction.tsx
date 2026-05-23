@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { EditorCanvas } from '@/features/EditorCanvas';
+import { usePermission } from '@/hooks/usePermission';
 import { useTaskStore } from '@/store/task';
 import { taskDetailSelectors } from '@/store/task/selectors';
 
@@ -10,6 +11,7 @@ const DEBOUNCE_MS = 300;
 
 const TaskInstruction = memo(() => {
   const { t } = useTranslation('chat');
+  const { allowed: canEditTask } = usePermission('create_content');
   const instruction = useTaskStore(taskDetailSelectors.activeTaskInstruction);
   const taskId = useTaskStore(taskDetailSelectors.activeTaskId);
   const updateTask = useTaskStore((s) => s.updateTask);
@@ -25,6 +27,7 @@ const TaskInstruction = memo(() => {
   }, [taskId]);
 
   const handleContentChange = useCallback(() => {
+    if (!canEditTask) return;
     if (!editor || !taskId) return;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -34,7 +37,7 @@ const TaskInstruction = memo(() => {
         console.error('[TaskInstruction] Failed to save:', e);
       });
     }, DEBOUNCE_MS);
-  }, [editor, taskId, updateTask]);
+  }, [canEditTask, editor, taskId, updateTask]);
 
   return (
     <EditorCanvas

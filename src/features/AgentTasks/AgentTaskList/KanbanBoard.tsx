@@ -16,6 +16,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { usePermission } from '@/hooks/usePermission';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
 import { useTaskStore } from '@/store/task';
@@ -75,6 +76,7 @@ const optimisticMoveTask = (
 const KanbanBoard = memo(() => {
   const { t } = useTranslation('chat');
   const navigate = useWorkspaceAwareNavigate();
+  const { allowed: canEditTask } = usePermission('create_content');
 
   const useFetchTaskGroupList = useTaskStore((s) => s.useFetchTaskGroupList);
   useFetchTaskGroupList({ allAgents: true });
@@ -94,14 +96,19 @@ const KanbanBoard = memo(() => {
     useSensor(KeyboardSensor),
   );
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const task = event.active.data.current?.task as TaskListItem | undefined;
-    setActiveTask(task ?? null);
-  }, []);
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      if (!canEditTask) return;
+      const task = event.active.data.current?.task as TaskListItem | undefined;
+      setActiveTask(task ?? null);
+    },
+    [canEditTask],
+  );
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       setActiveTask(null);
+      if (!canEditTask) return;
 
       const { active, over } = event;
       if (!over) return;
@@ -125,7 +132,7 @@ const KanbanBoard = memo(() => {
         useTaskStore.setState({ taskGroups: prevGroups }, false, 'kanban/revertMove');
       }
     },
-    [updateTaskStatus],
+    [canEditTask, updateTaskStatus],
   );
 
   const handleDragCancel = useCallback(() => {
@@ -133,13 +140,14 @@ const KanbanBoard = memo(() => {
   }, []);
 
   const handleCreateTask = useCallback(() => {
+    if (!canEditTask) return;
     createTaskModal({
       onCreated: (task) => {
         navigate(`/task/${task.identifier}`);
       },
       showInlineToggle: false,
     });
-  }, [navigate]);
+  }, [canEditTask, navigate]);
 
   const handleHideColumn = useCallback(
     (columnKey: string) => {
@@ -212,7 +220,7 @@ const KanbanBoard = memo(() => {
   return (
     <DndContext
       collisionDetection={pointerWithin}
-      sensors={sensors}
+      sensors={canEditTask ? sensors : []}
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
       onDragStart={handleDragStart}
@@ -223,7 +231,7 @@ const KanbanBoard = memo(() => {
           return (
             <KanbanColumn
               columnKey={col.key}
-              droppable={col.droppable}
+              droppable={canEditTask && col.droppable}
               key={col.key}
               tasks={(group?.tasks ?? []) as TaskListItem[]}
               total={group?.total ?? 0}

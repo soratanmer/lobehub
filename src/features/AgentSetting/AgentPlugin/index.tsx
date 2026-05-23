@@ -34,8 +34,9 @@ const AgentPlugin = memo(() => {
     createSkillStoreModal();
   }, []);
 
-  const [userEnabledPlugins, toggleAgentPlugin] = useStore((s) => [
+  const [userEnabledPlugins, disabled, toggleAgentPlugin] = useStore((s) => [
     s.config.plugins || [],
+    s.disabled,
     s.toggleAgentPlugin,
   ]);
 
@@ -80,7 +81,10 @@ const AgentPlugin = memo(() => {
       children: (
         <Switch
           checked={true}
+          disabled={disabled}
           onChange={() => {
+            if (disabled) return;
+
             toggleAgentPlugin(id);
           }}
         />
@@ -106,10 +110,13 @@ const AgentPlugin = memo(() => {
       {hasDeprecated ? (
         <Tooltip title={t('plugin.clearDeprecated')}>
           <Button
+            disabled={disabled}
             icon={LucideTrash2}
             size={'small'}
             onClick={(e) => {
               e.stopPropagation();
+              if (disabled) return;
+
               for (const i of deprecatedList) {
                 toggleAgentPlugin(i.tag as string);
               }

@@ -41,6 +41,10 @@ vi.mock('@/features/WorkspaceSetting/SideBar/Content', () => ({
   default: () => <div>Workspace settings sidebar</div>,
 }));
 
+vi.mock('@/routes/(main)/settings/_layout/SidebarContent', () => ({
+  default: () => <div>Personal settings sidebar</div>,
+}));
+
 vi.mock('./components/NavPanelDraggable', () => ({
   NavPanelDraggable: ({ activeContent }: NavPanelDraggableMockProps) => (
     <div data-nav-key={activeContent.key}>{activeContent.node}</div>
@@ -66,6 +70,25 @@ describe('NavPanel', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Workspace settings sidebar')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Stale home snapshot')).not.toBeInTheDocument();
+  });
+
+  it('uses personal settings sidebar instead of a stale home snapshot on user settings routes', async () => {
+    pathname = '/settings/profile';
+    const { default: NavPanel, NavPanelPortal } = await import('./index');
+
+    render(
+      <>
+        <NavPanelPortal navKey="home">
+          <div>Stale home snapshot</div>
+        </NavPanelPortal>
+        <NavPanel />
+      </>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Personal settings sidebar')).toBeInTheDocument();
     });
     expect(screen.queryByText('Stale home snapshot')).not.toBeInTheDocument();
   });

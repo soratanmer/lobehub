@@ -5,6 +5,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { EditorCanvas as SharedEditorCanvas } from '@/features/EditorCanvas';
+import { usePermission } from '@/hooks/usePermission';
 
 import { usePageEditorStore } from '../store';
 import { useAskCopilotItem } from './useAskCopilotItem';
@@ -17,6 +18,7 @@ interface EditorCanvasProps {
 
 const EditorCanvas = memo<EditorCanvasProps>(({ placeholder, style }) => {
   const { t } = useTranslation(['file', 'ui']);
+  const { allowed: canEdit } = usePermission('edit_own_content');
 
   const editor = usePageEditorStore((s) => s.editor);
   const documentId = usePageEditorStore((s) => s.documentId);
@@ -26,6 +28,7 @@ const EditorCanvas = memo<EditorCanvasProps>(({ placeholder, style }) => {
 
   return (
     <SharedEditorCanvas
+      disabled={!canEdit}
       documentId={documentId}
       editor={editor}
       placeholder={placeholder || t('pageEditor.editorPlaceholder')}

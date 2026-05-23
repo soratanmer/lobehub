@@ -4,6 +4,7 @@ import isEqual from 'fast-deep-equal';
 import { memo, use, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { usePermission } from '@/hooks/usePermission';
 import { aiModelSelectors, useAiInfraStore } from '@/store/aiInfra';
 
 import ModelConfigForm from '../CreateNewModelModal/Form';
@@ -17,6 +18,7 @@ interface ModelConfigModalProps {
 
 const ModelConfigModal = memo<ModelConfigModalProps>(({ id, open, setOpen }) => {
   const { t } = useTranslation(['common', 'setting']);
+  const { allowed: canManageProvider } = usePermission('manage_provider_key');
   const [formInstance, setFormInstance] = useState<FormInstance>();
   const [loading, setLoading] = useState(false);
   const [editingProvider, updateAiModelsConfig] = useAiInfraStore((s) => [
@@ -42,11 +44,13 @@ const ModelConfigModal = memo<ModelConfigModalProps>(({ id, open, setOpen }) => 
           {t('cancel')}
         </Button>,
         <Button
+          disabled={!canManageProvider}
           key="ok"
           loading={loading}
           style={{ marginInlineStart: '16px' }}
           type="primary"
           onClick={async () => {
+            if (!canManageProvider) return;
             if (!editingProvider || !id || !formInstance) return;
             const data = formInstance.getFieldsValue();
 

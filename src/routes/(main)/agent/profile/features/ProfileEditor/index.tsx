@@ -8,6 +8,7 @@ import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import ModelSelect from '@/features/ModelSelect';
+import { usePermission } from '@/hooks/usePermission';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/selectors';
 
@@ -20,12 +21,14 @@ import HeterogeneousAgentStatusCard from './HeterogeneousAgentStatusCard';
 
 const ProfileEditor = memo(() => {
   const { t } = useTranslation('setting');
+  const { allowed: canEdit } = usePermission('edit_own_content');
   const config = useAgentStore(agentSelectors.currentAgentConfig, isEqual);
   const updateConfig = useAgentStore((s) => s.updateAgentConfig);
   const isHeterogeneous = useAgentStore(agentSelectors.isCurrentAgentHeterogeneous);
   const heterogeneousProvider = config.agencyConfig?.heterogeneousProvider;
 
   const updateHeterogeneousCommand = async (command: string) => {
+    if (!canEdit) return;
     if (!heterogeneousProvider) return;
     await updateConfig({
       agencyConfig: {
@@ -35,6 +38,7 @@ const ProfileEditor = memo(() => {
   };
 
   const updateHeterogeneousEnv = async (env: Record<string, string>) => {
+    if (!canEdit) return;
     if (!heterogeneousProvider) return;
     await updateConfig({
       agencyConfig: {
@@ -94,12 +98,17 @@ const ProfileEditor = memo(() => {
             >
               <ModelSelect
                 initialWidth
+                disabled={!canEdit}
                 popupWidth={400}
                 value={{
                   model: config.model,
                   provider: config.provider,
                 }}
-                onChange={updateConfig}
+                onChange={(value) => {
+                  if (!canEdit) return;
+
+                  updateConfig(value);
+                }}
               />
             </Flexbox>
             <AgentTool />

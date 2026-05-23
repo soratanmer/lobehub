@@ -12,6 +12,7 @@ import { DESKTOP_HEADER_ICON_SMALL_SIZE } from '@/const/layoutTokens';
 import NavHeader from '@/features/NavHeader';
 import ToggleRightPanelButton from '@/features/RightPanel/ToggleRightPanelButton';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { usePermission } from '@/hooks/usePermission';
 import { useMarketAuth } from '@/layout/AuthProvider/MarketAuth';
 import { resolveMarketAuthError } from '@/layout/AuthProvider/MarketAuth/errors';
 import { useAgentStore } from '@/store/agent';
@@ -36,6 +37,7 @@ const Header = memo(() => {
   const activeAgentId = useAgentStore((s) => s.activeAgentId);
   const isHeterogeneous = useAgentStore(agentSelectors.isCurrentAgentHeterogeneous);
   const removeAgent = useHomeStore((s) => s.removeAgent);
+  const { allowed: canEdit } = usePermission('edit_own_content');
   const { isAuthenticated, isLoading: isAuthLoading, signIn } = useMarketAuth();
   const { isUnderReview } = useVersionReviewStatus();
 
@@ -67,6 +69,7 @@ const Header = memo(() => {
   }, [checkOwnership, publish]);
 
   const handlePublishClick = useCallback(async () => {
+    if (!canEdit) return;
     if (isUnderReview) {
       message.warning({
         content: t('marketPublish.validation.underReview', {
@@ -111,16 +114,27 @@ const Header = memo(() => {
       },
       title: t('marketPublish.validation.confirmPublish', { ns: 'setting' }),
     });
-  }, [action, doPublish, isAuthenticated, isUnderReview, meta?.title, signIn, systemRole, t]);
+  }, [
+    action,
+    canEdit,
+    doPublish,
+    isAuthenticated,
+    isUnderReview,
+    meta?.title,
+    signIn,
+    systemRole,
+    t,
+  ]);
 
   const handleForkConfirm = useCallback(async () => {
+    if (!canEdit) return;
     setShowForkModal(false);
     setOriginalAgentInfo(null);
     await publish();
-  }, [publish]);
+  }, [canEdit, publish]);
 
   const handleDelete = useCallback(() => {
-    if (!activeAgentId) return;
+    if (!canEdit || !activeAgentId) return;
     modal.confirm({
       centered: true,
       okButtonProps: { danger: true },
@@ -131,7 +145,7 @@ const Header = memo(() => {
       },
       title: t('confirmRemoveSessionItemAlert', { ns: 'chat' }),
     });
-  }, [activeAgentId, modal, navigate, removeAgent, t]);
+  }, [activeAgentId, canEdit, modal, navigate, removeAgent, t]);
 
   const importMenuItem = useBusinessAgentImportMenuItem(activeAgentId ?? undefined);
 
@@ -146,6 +160,7 @@ const Header = memo(() => {
         },
         { type: 'divider' as const },
         {
+          disabled: !canEdit,
           icon: <Icon icon={ShapesUploadIcon} />,
           key: 'publish',
           label: t('publishToCommunity', { ns: 'setting' }),
@@ -156,13 +171,14 @@ const Header = memo(() => {
         { type: 'divider' as const },
         {
           danger: true,
+          disabled: !canEdit,
           icon: <Icon icon={Trash} />,
           key: 'delete',
           label: t('delete', { ns: 'common' }),
           onClick: handleDelete,
         },
       ].filter(Boolean),
-    [handlePublishClick, handleDelete, t, importMenuItem],
+    [canEdit, handlePublishClick, handleDelete, t, importMenuItem],
   );
 
   return (

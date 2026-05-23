@@ -7,6 +7,7 @@ import { isDesktop } from '@/const/version';
 import { type SearchResult } from '@/database/repositories/search';
 import { useCreateNewModal } from '@/features/LibraryModal';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { usePermission } from '@/hooks/usePermission';
 import { useGroupWizard } from '@/layout/GlobalProvider/GroupWizardProvider';
 import { lambdaClient } from '@/libs/trpc/client';
 import { useCreateMenuItems } from '@/routes/(main)/home/_layout/hooks';
@@ -43,6 +44,7 @@ export const useCommandMenu = () => {
   } = useCommandMenuContext();
 
   const navigate = useWorkspaceAwareNavigate();
+  const { allowed: canCreate } = usePermission('create_content');
   const { setTheme } = useNextThemesTheme();
   const createAgent = useAgentStore((s) => s.createAgent);
   const refreshAgentList = useHomeStore((s) => s.refreshAgentList);
@@ -152,6 +154,8 @@ export const useCommandMenu = () => {
   }, [selectedAgent, search, navigate, setSelectedAgent, onClose]);
 
   const handleCreateSession = useCallback(async () => {
+    if (!canCreate) return;
+
     const result = await createAgent({});
     await refreshAgentList();
 
@@ -161,30 +165,38 @@ export const useCommandMenu = () => {
     }
 
     onClose();
-  }, [createAgent, refreshAgentList, navigate, onClose]);
+  }, [canCreate, createAgent, refreshAgentList, navigate, onClose]);
 
   const openNewTopicOrSaveTopic = useChatStore((s) => s.openNewTopicOrSaveTopic);
 
   const handleCreateTopic = useCallback(() => {
+    if (!canCreate) return;
+
     openNewTopicOrSaveTopic();
     onClose();
-  }, [openNewTopicOrSaveTopic, onClose]);
+  }, [canCreate, openNewTopicOrSaveTopic, onClose]);
 
   const handleCreateLibrary = useCallback(() => {
+    if (!canCreate) return;
+
     onClose();
     openCreateLibraryModal({
       onSuccess: (id) => {
         navigate(`/resource/library/${id}`);
       },
     });
-  }, [onClose, openCreateLibraryModal, navigate]);
+  }, [canCreate, onClose, openCreateLibraryModal, navigate]);
 
   const handleCreatePage = useCallback(async () => {
+    if (!canCreate) return;
+
     await createPage();
     onClose();
-  }, [createPage, onClose]);
+  }, [canCreate, createPage, onClose]);
 
   const handleCreateAgentTeam = useCallback(() => {
+    if (!canCreate) return;
+
     onClose();
     openGroupWizard({
       onCreateCustom: async (selectedAgents) => {
@@ -194,7 +206,7 @@ export const useCommandMenu = () => {
         await createGroupFromTemplate(templateId, selectedMemberTitles);
       },
     });
-  }, [onClose, openGroupWizard, createGroupWithMembers, createGroupFromTemplate]);
+  }, [canCreate, onClose, openGroupWizard, createGroupWithMembers, createGroupFromTemplate]);
 
   return {
     closeCommandMenu,

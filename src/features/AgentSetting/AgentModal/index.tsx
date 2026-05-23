@@ -25,6 +25,7 @@ const styles = createStaticStyles(({ css }) => ({
 // Wrapper component for slider with checkbox
 interface SliderWithCheckboxProps {
   checked: boolean;
+  controlDisabled?: boolean;
   disabled: boolean;
   max: number;
   min: number;
@@ -37,13 +38,24 @@ interface SliderWithCheckboxProps {
 }
 
 const SliderWithCheckbox = memo<SliderWithCheckboxProps>(
-  ({ value, onChange, disabled, checked, onToggle, min, max, step, unlimitedInput }) => {
+  ({
+    value,
+    onChange,
+    disabled,
+    controlDisabled,
+    checked,
+    onToggle,
+    min,
+    max,
+    step,
+    unlimitedInput,
+  }) => {
     return (
       <Flexbox horizontal align="center" gap={12} justify={'flex-end'} width={300}>
         {!disabled && (
           <div style={{ flex: 1 }}>
             <SliderWithInput
-              disabled={disabled}
+              disabled={controlDisabled || disabled}
               max={max}
               min={min}
               step={step}
@@ -55,6 +67,7 @@ const SliderWithCheckbox = memo<SliderWithCheckboxProps>(
         )}
         <Switch
           checked={checked}
+          disabled={controlDisabled}
           size={checked ? 'small' : 'default'}
           onChange={(v) => {
             onToggle(v);
@@ -68,6 +81,7 @@ const SliderWithCheckbox = memo<SliderWithCheckboxProps>(
 // Wrapper component for select with checkbox
 interface SelectWithCheckboxProps {
   checked: boolean;
+  disabled?: boolean;
   onChange?: (value: string) => void;
   onToggle: (checked: boolean) => void;
   options: Array<{ label: string; value: string }>;
@@ -75,16 +89,17 @@ interface SelectWithCheckboxProps {
 }
 
 const SelectWithCheckbox = memo<SelectWithCheckboxProps>(
-  ({ value, onChange, checked, onToggle, options }) => {
+  ({ value, onChange, checked, onToggle, options, disabled }) => {
     return (
       <Flexbox horizontal align="center" gap={12} justify={'flex-end'} width={300}>
         {checked && (
           <div style={{ flex: 1 }}>
-            <Select options={options} value={value} onChange={onChange} />
+            <Select disabled={disabled} options={options} value={value} onChange={onChange} />
           </div>
         )}
         <Switch
           checked={checked}
+          disabled={disabled}
           size={checked ? 'small' : 'default'}
           onChange={(v) => {
             onToggle(v);
@@ -149,7 +164,7 @@ const AgentModal = memo(() => {
   const [form] = Form.useForm();
   const config = useStore(selectors.currentAgentConfig, isEqual);
 
-  const updateConfig = useStore((s) => s.setAgentConfig);
+  const [disabled, updateConfig] = useStore((s) => [s.disabled, s.setAgentConfig]);
 
   const { temperature, top_p, presence_penalty, frequency_penalty } = config.params ?? {};
 
@@ -207,6 +222,8 @@ const AgentModal = memo(() => {
 
   const handleToggle = useCallback(
     (key: ParamKey, enabled: boolean) => {
+      if (disabled) return;
+
       const namePath = PARAM_NAME_MAP[key];
 
       if (!enabled) {
@@ -223,7 +240,7 @@ const AgentModal = memo(() => {
       lastValuesRef.current[key] = nextValue;
       form.setFieldValue(namePath, nextValue);
     },
-    [form],
+    [disabled, form],
   );
 
   // Hide params the selected model rejects outright (e.g. Claude Opus 4.7 drops
@@ -243,6 +260,7 @@ const AgentModal = memo(() => {
       children: (
         <SliderWithCheckbox
           checked={enabled}
+          controlDisabled={disabled}
           disabled={!enabled}
           max={meta.slider.max}
           min={meta.slider.min}
@@ -284,12 +302,15 @@ const AgentModal = memo(() => {
           <SliderWithCheckbox
             unlimitedInput
             checked={typeof maxTokensValue === 'number'}
+            controlDisabled={disabled}
             disabled={typeof maxTokensValue !== 'number'}
             max={32_000}
             min={0}
             step={100}
             styles={styles}
             onToggle={(checked) => {
+              if (disabled) return;
+
               if (!checked) {
                 form.setFieldValue(['params', 'max_tokens'], undefined);
               } else {
@@ -313,12 +334,15 @@ const AgentModal = memo(() => {
         children: (
           <SelectWithCheckbox
             checked={typeof reasoningEffortValue === 'string'}
+            disabled={disabled}
             options={[
               { label: t('settingModel.reasoningEffort.options.low'), value: 'low' },
               { label: t('settingModel.reasoningEffort.options.medium'), value: 'medium' },
               { label: t('settingModel.reasoningEffort.options.high'), value: 'high' },
             ]}
             onToggle={(checked) => {
+              if (disabled) return;
+
               if (!checked) {
                 form.setFieldValue(['params', 'reasoning_effort'], undefined);
               } else {
@@ -344,6 +368,7 @@ const AgentModal = memo(() => {
 
   return (
     <Form
+      disabled={disabled}
       footer={<Form.SubmitFooter />}
       form={form}
       initialValues={config}
@@ -351,6 +376,8 @@ const AgentModal = memo(() => {
       itemsType={'group'}
       variant={'borderless'}
       onFinish={(values) => {
+        if (disabled) return;
+
         // Clean up undefined and null values in params to ensure disabled parameters are properly removed
         const cleanedValues = { ...values };
         if (cleanedValues.params) {

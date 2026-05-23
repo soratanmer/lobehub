@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { useAppOrigin } from '@/hooks/useAppOrigin';
+import { usePermission } from '@/hooks/usePermission';
 import { useTaskStore } from '@/store/task';
 import { taskDetailSelectors } from '@/store/task/selectors';
 
@@ -14,10 +15,12 @@ const TaskDetailHeaderActions = memo(() => {
   const { modal, message } = App.useApp();
   const navigate = useWorkspaceAwareNavigate();
   const appOrigin = useAppOrigin();
+  const { allowed: canEditTask } = usePermission('create_content');
   const taskId = useTaskStore(taskDetailSelectors.activeTaskId);
   const deleteTask = useTaskStore((s) => s.deleteTask);
 
   const triggerDelete = useCallback(() => {
+    if (!canEditTask) return;
     if (!taskId) return;
     modal.confirm({
       centered: true,
@@ -31,7 +34,7 @@ const TaskDetailHeaderActions = memo(() => {
       title: t('taskDetail.deleteConfirm.title'),
       type: 'error',
     });
-  }, [taskId, modal, t, deleteTask, navigate]);
+  }, [canEditTask, taskId, modal, t, deleteTask, navigate]);
 
   const menuItems = useMemo<DropdownItem[]>(() => {
     if (!taskId) return [];
@@ -60,13 +63,14 @@ const TaskDetailHeaderActions = memo(() => {
       { type: 'divider' },
       {
         danger: true,
+        disabled: !canEditTask,
         icon: <Icon icon={Trash} />,
         key: 'delete',
         label: t('delete', { ns: 'common' }),
         onClick: triggerDelete,
       },
     ];
-  }, [taskId, appOrigin, t, message, triggerDelete]);
+  }, [taskId, appOrigin, t, message, triggerDelete, canEditTask]);
 
   if (!taskId) return null;
 

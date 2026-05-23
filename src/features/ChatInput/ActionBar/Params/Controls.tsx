@@ -13,6 +13,7 @@ import type { PartialDeep } from 'type-fest';
 import InfoTooltip from '@/components/InfoTooltip';
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import ControlsForm from '@/features/ModelSwitchPanel/components/ControlsForm';
+import { usePermission } from '@/hooks/usePermission';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { aiModelSelectors, useAiInfraStore } from '@/store/aiInfra';
@@ -469,17 +470,19 @@ const SectionHeader = memo<SectionHeaderProps>(({ onToggle, open, title }) => (
 ));
 
 interface SliderFieldProps extends SliderConfig {
+  disabled?: boolean;
   inputWidth?: number;
   onChange: (value: number) => void;
   value?: number;
 }
 
 const SliderField = memo<SliderFieldProps>(
-  ({ value, onChange, min, max, step, unlimitedInput, inputWidth = 56 }) => (
+  ({ value, disabled, onChange, min, max, step, unlimitedInput, inputWidth = 56 }) => (
     <SliderWithInput
       changeOnWheel
       className={styles.slider}
       controls={false}
+      disabled={disabled}
       gap={10}
       max={max}
       min={min}
@@ -502,6 +505,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
   const { t } = useTranslation(['setting', 'components']);
   const agentId = useAgentId();
   const { updateAgentConfig } = useUpdateAgentConfig();
+  const { allowed: canCreate } = usePermission('create_content');
 
   const config = useAgentStore(
     (s) => agentByIdSelectors.getAgentConfigById(agentId)(s) || DEFAULT_AGENT_CONFIG,
@@ -590,6 +594,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
 
   const handleToggle = useCallback(
     async (key: ParamKey, enabled: boolean) => {
+      if (!canCreate) return;
       const namePath = PARAM_NAME_MAP[key];
       let newValue: number | undefined;
 
@@ -640,12 +645,13 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
         setUpdating(false);
       }
     },
-    [form, refreshFormValues, setUpdating, updateAgentConfig],
+    [canCreate, form, refreshFormValues, setUpdating, updateAgentConfig],
   );
 
   const handleValuesChange = useMemo(
     () =>
       debounce(async (values: PartialDeep<LobeAgentConfig>) => {
+        if (!canCreate) return;
         setUpdating(true);
         try {
           await updateAgentConfig(values);
@@ -653,11 +659,12 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
           setUpdating(false);
         }
       }, 500),
-    [updateAgentConfig, setUpdating],
+    [canCreate, updateAgentConfig, setUpdating],
   );
 
   const handleFieldChange = useCallback(
     (namePath: (string | number)[], value: boolean | number) => {
+      if (!canCreate) return;
       form.setFieldValue(namePath, value);
       if (
         namePath[0] === 'params' &&
@@ -709,6 +716,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
               action={
                 <Switch
                   checked={Boolean(enableContextCompression)}
+                  disabled={!canCreate}
                   size={'small'}
                   onChange={(checked) => {
                     handleFieldChange(['chatConfig', 'enableContextCompression'], checked);
@@ -723,6 +731,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
               action={
                 <Switch
                   checked={Boolean(enableHistoryCount)}
+                  disabled={!canCreate}
                   size={'small'}
                   onChange={(checked) => {
                     handleFieldChange(['chatConfig', 'enableHistoryCount'], checked);
@@ -733,6 +742,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
               {enableHistoryCount && (
                 <SliderField
                   unlimitedInput
+                  disabled={!canCreate}
                   inputWidth={56}
                   max={20}
                   min={0}
@@ -756,6 +766,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
               {modelConfigOpen && (
                 <div className={styles.modelConfigSection}>
                   <ControlsForm
+                    disabled={!canCreate}
                     model={agentModel}
                     provider={agentProvider}
                     onUpdatingChange={setUpdating}
@@ -788,6 +799,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
                         action={
                           <Switch
                             checked={enabled}
+                            disabled={!canCreate}
                             size={'small'}
                             onChange={(checked) => {
                               handleToggle(key, checked);
@@ -797,6 +809,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
                       >
                         {enabled && (
                           <SliderField
+                            disabled={!canCreate}
                             value={form.getFieldValue(PARAM_NAME_MAP[key])}
                             onChange={(value) => {
                               handleFieldChange(PARAM_NAME_MAP[key], value);
@@ -814,6 +827,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
                     action={
                       <Switch
                         checked={Boolean(enableMaxTokens)}
+                        disabled={!canCreate}
                         size={'small'}
                         onChange={(checked) => {
                           handleFieldChange(['chatConfig', 'enableMaxTokens'], checked);
@@ -824,6 +838,7 @@ const Controls = memo<ControlsProps>(({ setUpdating, updating, variant = 'popove
                     {enableMaxTokens && (
                       <SliderField
                         unlimitedInput
+                        disabled={!canCreate}
                         inputWidth={64}
                         max={32_000}
                         min={0}

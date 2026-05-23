@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import urlJoin from 'url-join';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { usePermission } from '@/hooks/usePermission';
 import { chatGroupService } from '@/services/chatGroup';
 import { discoverService } from '@/services/discover';
 import { useAgentGroupStore } from '@/store/agentGroup';
@@ -46,6 +47,7 @@ const AddGroupAgent = memo<{ mobile?: boolean }>(() => {
   const { t } = useTranslation('discover');
   const navigate = useWorkspaceAwareNavigate();
   const loadGroups = useAgentGroupStore((s) => s.loadGroups);
+  const { allowed: canCreate } = usePermission('create_content');
 
   const meta = {
     avatar,
@@ -80,6 +82,7 @@ const AddGroupAgent = memo<{ mobile?: boolean }>(() => {
   };
 
   const createGroupFromMarket = async (shouldNavigate = true) => {
+    if (!canCreate) return;
     if (!config) {
       message.error(
         t('groupAgents.noConfig', { defaultValue: 'Group configuration not available' }),
@@ -205,6 +208,7 @@ const AddGroupAgent = memo<{ mobile?: boolean }>(() => {
   };
 
   const handleAddAndConverse = async () => {
+    if (!canCreate) return;
     setIsLoading(true);
     try {
       const isDuplicate = await checkDuplicateGroup();
@@ -219,6 +223,7 @@ const AddGroupAgent = memo<{ mobile?: boolean }>(() => {
   };
 
   const handleAdd = async () => {
+    if (!canCreate) return;
     setIsLoading(true);
     try {
       const isDuplicate = await checkDuplicateGroup();
@@ -234,6 +239,7 @@ const AddGroupAgent = memo<{ mobile?: boolean }>(() => {
 
   const menuItems = [
     {
+      disabled: !canCreate,
       key: 'addGroup',
       label: t('groupAgents.addGroup', { defaultValue: 'Add Group' }),
       onClick: handleAdd,
@@ -245,6 +251,7 @@ const AddGroupAgent = memo<{ mobile?: boolean }>(() => {
       <Button
         block
         className={styles.primaryButton}
+        disabled={!canCreate}
         loading={isLoading}
         size={'large'}
         style={{ flex: 1, width: 'unset' }}
@@ -256,11 +263,11 @@ const AddGroupAgent = memo<{ mobile?: boolean }>(() => {
       <DropdownMenu
         items={menuItems}
         popupProps={{ style: { minWidth: 267 } }}
-        triggerProps={{ disabled: isLoading }}
+        triggerProps={{ disabled: isLoading || !canCreate }}
       >
         <Button
           className={styles.menuButton}
-          disabled={isLoading}
+          disabled={isLoading || !canCreate}
           icon={<Icon icon={ChevronDownIcon} />}
           size={'large'}
           type={'primary'}

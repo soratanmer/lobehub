@@ -14,7 +14,7 @@ import { selectors, useStore } from '../store';
 const AgentChat = memo(() => {
   const { t } = useTranslation('setting');
   const [form] = Form.useForm();
-  const updateConfig = useStore((s) => s.setChatConfig);
+  const [disabled, updateConfig] = useStore((s) => [s.disabled, s.setChatConfig]);
   const config = useStore(selectors.currentChatConfig, isEqual);
 
   const chat: FormGroupItemType = {
@@ -82,13 +82,18 @@ const AgentChat = memo(() => {
 
   return (
     <Form
+      disabled={disabled}
       footer={<Form.SubmitFooter />}
       form={form}
       initialValues={config}
       items={[chat]}
       itemsType={'group'}
       variant={'borderless'}
-      onFinish={updateConfig}
+      onFinish={(values) => {
+        if (disabled) return;
+
+        updateConfig(values);
+      }}
       {...FORM_STYLE}
     />
   );

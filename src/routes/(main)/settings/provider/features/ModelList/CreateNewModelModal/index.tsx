@@ -3,6 +3,7 @@ import { type FormInstance } from 'antd';
 import { memo, use, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { usePermission } from '@/hooks/usePermission';
 import { useAiInfraStore } from '@/store/aiInfra';
 
 import { ProviderSettingsContext } from '../ProviderSettingsContext';
@@ -15,6 +16,7 @@ interface ModelConfigModalProps {
 
 const ModelConfigModal = memo<ModelConfigModalProps>(({ open, setOpen }) => {
   const { t } = useTranslation(['modelProvider', 'common']);
+  const { allowed: canManageProvider } = usePermission('manage_provider_key');
   const [formInstance, setFormInstance] = useState<FormInstance>();
   const [loading, setLoading] = useState(false);
   const [editingProvider, createNewAiModel] = useAiInfraStore((s) => [
@@ -41,11 +43,13 @@ const ModelConfigModal = memo<ModelConfigModalProps>(({ open, setOpen }) => {
         </Button>,
 
         <Button
+          disabled={!canManageProvider}
           key="ok"
           loading={loading}
           style={{ marginInlineStart: '16px' }}
           type="primary"
           onClick={async () => {
+            if (!canManageProvider) return;
             if (!editingProvider || !formInstance) return;
             const data = formInstance.getFieldsValue();
 
@@ -73,7 +77,11 @@ const ModelConfigModal = memo<ModelConfigModalProps>(({ open, setOpen }) => {
       }}
       onCancel={closeModal}
     >
-      <ModelConfigForm showDeployName={showDeployName} onFormInstanceReady={setFormInstance} />
+      <ModelConfigForm
+        disabled={!canManageProvider}
+        showDeployName={showDeployName}
+        onFormInstanceReady={setFormInstance}
+      />
     </Modal>
   );
 });

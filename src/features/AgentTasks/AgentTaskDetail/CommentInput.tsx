@@ -4,6 +4,7 @@ import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useEnterToSend } from '@/hooks/useEnterToSend';
+import { usePermission } from '@/hooks/usePermission';
 import { useUserAvatar } from '@/hooks/useUserAvatar';
 import { useTaskStore } from '@/store/task';
 
@@ -11,6 +12,7 @@ import { styles } from '../shared/style';
 
 const CommentInput = memo<{ taskId: string }>(({ taskId }) => {
   const { t } = useTranslation('chat');
+  const { allowed: canEditTask } = usePermission('create_content');
   const editor = useEditor();
   const addComment = useTaskStore((s) => s.addComment);
   const userAvatar = useUserAvatar();
@@ -19,6 +21,7 @@ const CommentInput = memo<{ taskId: string }>(({ taskId }) => {
   const shouldSendOnEnter = useEnterToSend();
 
   const handleSubmit = useCallback(async () => {
+    if (!canEditTask) return;
     const trimmed = String(editor?.getDocument?.('markdown') ?? '').trim();
     if (!trimmed || submitting) return;
     setSubmitting(true);
@@ -29,7 +32,7 @@ const CommentInput = memo<{ taskId: string }>(({ taskId }) => {
     } finally {
       setSubmitting(false);
     }
-  }, [taskId, editor, addComment, submitting]);
+  }, [canEditTask, taskId, editor, addComment, submitting]);
 
   return (
     <Flexbox horizontal align={'center'} className={styles.commentInputCard} gap={8}>
@@ -47,6 +50,7 @@ const CommentInput = memo<{ taskId: string }>(({ taskId }) => {
             setHasContent(!ed?.isEmpty);
           }}
           onPressEnter={({ event }) => {
+            if (!canEditTask) return true;
             if (shouldSendOnEnter(event)) {
               handleSubmit();
               return true;
@@ -56,7 +60,7 @@ const CommentInput = memo<{ taskId: string }>(({ taskId }) => {
       </div>
       <div style={{ flexShrink: 0 }}>
         <SendButton
-          disabled={!hasContent && !submitting}
+          disabled={!canEditTask || (!hasContent && !submitting)}
           loading={submitting}
           shape={'round'}
           type={'text'}
