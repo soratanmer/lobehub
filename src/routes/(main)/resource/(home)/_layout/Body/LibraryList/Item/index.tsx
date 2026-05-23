@@ -7,6 +7,7 @@ import React, { memo, useCallback, useMemo } from 'react';
 import RepoIcon from '@/components/LibIcon';
 import NavItem from '@/features/NavPanel/components/NavItem';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { usePermission } from '@/hooks/usePermission';
 import { useResourceManagerStore } from '@/routes/(main)/resource/features/store';
 import { useKnowledgeBaseStore } from '@/store/library';
 
@@ -27,6 +28,7 @@ const KnowledgeBaseItem = memo<KnowledgeBaseItemProps>(
   ({ id, name, description, active, style, className }) => {
     const setLibraryId = useResourceManagerStore((s) => s.setLibraryId);
     const navigate = useWorkspaceAwareNavigate();
+    const { allowed: canEdit } = usePermission('edit_own_content');
 
     const [editing, isLoading] = useKnowledgeBaseStore((s) => [
       s.knowledgeBaseRenamingId === id,
@@ -53,11 +55,11 @@ const KnowledgeBaseItem = memo<KnowledgeBaseItemProps>(
 
     const handleDoubleClick = useCallback(
       (e: React.MouseEvent) => {
-        if (e.altKey) {
+        if (e.altKey && canEdit) {
           toggleEditing(true);
         }
       },
-      [toggleEditing],
+      [canEdit, toggleEditing],
     );
 
     // Icon (show loader when updating)

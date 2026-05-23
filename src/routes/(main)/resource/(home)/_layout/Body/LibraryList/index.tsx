@@ -8,6 +8,7 @@ import { useCreateNewModal } from '@/features/LibraryModal';
 import EmptyNavItem from '@/features/NavPanel/components/EmptyNavItem';
 import SkeletonList from '@/features/NavPanel/components/SkeletonList';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { usePermission } from '@/hooks/usePermission';
 import { useKnowledgeBaseStore } from '@/store/library';
 
 import Item from './Item';
@@ -23,8 +24,10 @@ const LibraryList = memo(() => {
   const navigate = useWorkspaceAwareNavigate();
 
   const { open } = useCreateNewModal();
+  const { allowed: canCreate } = usePermission('create_content');
 
   const handleCreate = () => {
+    if (!canCreate) return;
     open({
       onSuccess: (id) => {
         navigate(`/resource/library/${id}`);
@@ -34,7 +37,8 @@ const LibraryList = memo(() => {
 
   if (isLoading) return <SkeletonList paddingInline={4} rows={3} />;
 
-  if (data?.length === 0) return <EmptyNavItem title={t('library.new')} onClick={handleCreate} />;
+  if (data?.length === 0)
+    return <EmptyNavItem disabled={!canCreate} title={t('library.new')} onClick={handleCreate} />;
 
   return (
     <Flexbox gap={1} paddingInline={4}>
