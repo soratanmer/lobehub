@@ -15,6 +15,7 @@ import {
 import { memo, type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { usePermission } from '@/hooks/usePermission';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
@@ -63,6 +64,15 @@ const styles = createStaticStyles(({ css }) => ({
       background: ${cssVar.colorFillSecondary};
     }
   `,
+  buttonDisabled: css`
+    cursor: not-allowed;
+    opacity: 0.5;
+
+    &:hover {
+      color: ${cssVar.colorTextSecondary};
+      background: transparent;
+    }
+  `,
   modeDesc: css`
     font-size: 12px;
     color: ${cssVar.colorTextTertiary};
@@ -105,6 +115,7 @@ const RuntimeConfig = memo(() => {
   const { t: tPlugin } = useTranslation('plugin');
   const agentId = useAgentId();
   const { updateAgentChatConfig } = useUpdateAgentConfig();
+  const { allowed: canCreateContent, reason } = usePermission('create_content');
   const [dirPopoverOpen, setDirPopoverOpen] = useState(false);
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
   const showContextWindow = useChatInputStore((s) =>
@@ -135,6 +146,7 @@ const RuntimeConfig = memo(() => {
 
   const switchMode = useCallback(
     async (mode: RuntimeEnvMode) => {
+      if (!canCreateContent) return;
       if (mode === runtimeMode) return;
 
       const platform = isDesktop ? 'desktop' : 'web';
@@ -143,7 +155,25 @@ const RuntimeConfig = memo(() => {
         runtimeEnv: { runtimeMode: { [platform]: mode } },
       });
     },
-    [runtimeMode, updateAgentChatConfig],
+    [canCreateContent, runtimeMode, updateAgentChatConfig],
+  );
+
+  const handleModePopoverOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!canCreateContent) return;
+
+      setModePopoverOpen(nextOpen);
+    },
+    [canCreateContent],
+  );
+
+  const handleDirPopoverOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!canCreateContent) return;
+
+      setDirPopoverOpen(nextOpen);
+    },
+    [canCreateContent],
   );
 
   // Skeleton placeholder to prevent layout jump during loading
@@ -220,7 +250,7 @@ const RuntimeConfig = memo(() => {
   );
 
   const modeButton = (
-    <div className={styles.button}>
+    <div className={cx(styles.button, !canCreateContent && styles.buttonDisabled)}>
       <Icon icon={ModeIcon} size={14} />
       <span>{modeLabel}</span>
       <Icon icon={ChevronDownIcon} size={12} />
@@ -228,7 +258,7 @@ const RuntimeConfig = memo(() => {
   );
 
   const dirButton = (
-    <div className={styles.button}>
+    <div className={cx(styles.button, !canCreateContent && styles.buttonDisabled)}>
       {dirIconNode}
       <span>{displayName}</span>
       <Icon icon={ChevronDownIcon} size={12} />
@@ -247,14 +277,14 @@ const RuntimeConfig = memo(() => {
       return (
         <>
           <Popover
-            open={dirPopoverOpen}
+            open={canCreateContent && dirPopoverOpen}
             placement="bottomLeft"
             styles={{ content: { padding: 4 } }}
             trigger="click"
             content={
               <WorkingDirectory agentId={agentId} onClose={() => setDirPopoverOpen(false)} />
             }
-            onOpenChange={setDirPopoverOpen}
+            onOpenChange={handleDirPopoverOpenChange}
           >
             <div>
               {dirPopoverOpen ? (
@@ -262,7 +292,9 @@ const RuntimeConfig = memo(() => {
               ) : (
                 <Tooltip
                   title={
-                    effectiveWorkingDirectory || tPlugin('localSystem.workingDirectory.notSet')
+                    canCreateContent
+                      ? effectiveWorkingDirectory || tPlugin('localSystem.workingDirectory.notSet')
+                      : reason
                   }
                 >
                   {dirButton}
@@ -289,17 +321,19 @@ const RuntimeConfig = memo(() => {
           <>
             <Popover
               content={modeContent}
-              open={modePopoverOpen}
+              open={canCreateContent && modePopoverOpen}
               placement="top"
               styles={{ content: { padding: 4 } }}
               trigger="click"
-              onOpenChange={setModePopoverOpen}
+              onOpenChange={handleModePopoverOpenChange}
             >
               <div>
                 {modePopoverOpen ? (
                   modeButton
                 ) : (
-                  <Tooltip title={t('runtimeEnv.selectMode')}>{modeButton}</Tooltip>
+                  <Tooltip title={canCreateContent ? t('runtimeEnv.selectMode') : reason}>
+                    {modeButton}
+                  </Tooltip>
                 )}
               </div>
             </Popover>

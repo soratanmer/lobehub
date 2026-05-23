@@ -6,6 +6,7 @@ import { createStaticStyles, cx } from 'antd-style';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { usePermission } from '@/hooks/usePermission';
 import { useStableNavigate } from '@/hooks/useStableNavigate';
 import { agentService } from '@/services/agent';
 import { useAgentStore } from '@/store/agent';
@@ -51,6 +52,7 @@ const StarterList = memo(() => {
   const navigate = useStableNavigate();
   const { message } = App.useApp();
   const { agentId: activeAgentId } = useResolvedHomeAgentId();
+  const { allowed: canCreateContent, reason } = usePermission('create_content');
   const updateAgentConfigById = useAgentStore((s) => s.updateAgentConfigById);
   const [switchingKey, setSwitchingKey] = useState<StarterKey | null>(null);
 
@@ -77,6 +79,8 @@ const StarterList = memo(() => {
 
   const handleClick = useCallback(
     async (key: StarterKey) => {
+      if (!canCreateContent) return;
+
       if (key === 'video') {
         navigate('/video?model=dreamina-seedance-2-0-260128');
         return;
@@ -122,7 +126,7 @@ const StarterList = memo(() => {
         return;
       }
     },
-    [navigate, activeAgentId, updateAgentConfigById, switchingKey, message, t],
+    [canCreateContent, navigate, activeAgentId, updateAgentConfigById, switchingKey, message, t],
   );
 
   return (
@@ -132,10 +136,11 @@ const StarterList = memo(() => {
       </Tag>
       {items.map((item) => {
         const isLoading = switchingKey === item.key;
+        const disabled = item.disabled || !canCreateContent || (!!switchingKey && !isLoading);
         const button = (
           <Button
             className={cx(styles.button)}
-            disabled={item.disabled || (!!switchingKey && !isLoading)}
+            disabled={disabled}
             icon={item.icon}
             key={item.key}
             loading={isLoading}
@@ -150,10 +155,10 @@ const StarterList = memo(() => {
           </Button>
         );
 
-        if (item.disabled) {
+        if (item.disabled || !canCreateContent) {
           return (
-            <Tooltip key={item.key} title={t('starter.developing')}>
-              {button}
+            <Tooltip key={item.key} title={item.disabled ? t('starter.developing') : reason}>
+              <div>{button}</div>
             </Tooltip>
           );
         }
